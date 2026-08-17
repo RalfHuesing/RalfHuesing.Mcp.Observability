@@ -7,39 +7,13 @@ namespace RalfHuesing.Mcp.Observability.Tests.Internal;
 /// Verifies the asynchronous writer lifecycle (<see cref="IAsyncDisposable"/>
 /// and <see cref="JsonlLogWriter.FlushAsync"/>).
 /// </summary>
-public sealed class JsonlLogWriterFlushTests : IDisposable
+public sealed class JsonlLogWriterFlushTests : TempDirectoryTestBase
 {
-    private readonly string _tempDirectory;
-
-    public JsonlLogWriterFlushTests()
-    {
-        _tempDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "McpObsFlushTests_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempDirectory);
-    }
-
-    // ainetlinter-disable DuplicateCode - Standard IDisposable temp directory cleanup pattern
-    public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_tempDirectory))
-            {
-                Directory.Delete(_tempDirectory, recursive: true);
-            }
-        }
-        catch
-        {
-            // Ignored on cleanup
-        }
-    }
-
     [Fact]
     public async Task FlushAsync_FlushesPendingWritesToFile()
     {
         var ct = TestContext.Current.CancellationToken;
-        var options = new McpObservabilityOptions { LogDirectory = _tempDirectory };
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
         var context = new ObservabilityContext(options);
 
         using var writer = new JsonlLogWriter(context);
@@ -59,7 +33,7 @@ public sealed class JsonlLogWriterFlushTests : IDisposable
     public async Task DisposeAsync_FlushesAndClosesStreamProperly()
     {
         var ct = TestContext.Current.CancellationToken;
-        var options = new McpObservabilityOptions { LogDirectory = _tempDirectory };
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
         var context = new ObservabilityContext(options);
         string logPath;
 
@@ -77,3 +51,4 @@ public sealed class JsonlLogWriterFlushTests : IDisposable
         Assert.Equal("async-disposed-payload", doc.RootElement.GetProperty("message").GetString());
     }
 }
+

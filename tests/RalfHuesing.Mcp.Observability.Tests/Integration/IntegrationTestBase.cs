@@ -7,35 +7,8 @@ namespace RalfHuesing.Mcp.Observability.Tests.Integration;
 /// Base class for MCP Observability integration tests providing isolated temporary
 /// directory lifecycle management, duplex pipe transport streams, and shared log file reader.
 /// </summary>
-public abstract class IntegrationTestBase : IDisposable
+public abstract class IntegrationTestBase : TempDirectoryTestBase
 {
-    protected string TempDirectory { get; }
-
-    protected IntegrationTestBase()
-    {
-        TempDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "McpObsTest_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(TempDirectory);
-    }
-
-    public virtual void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(TempDirectory))
-            {
-                Directory.Delete(TempDirectory, recursive: true);
-            }
-        }
-        catch
-        {
-            // Ignored on test cleanup
-        }
-
-        GC.SuppressFinalize(this);
-    }
-
     protected static (Stream ClientRead, Stream ClientWrite, Stream ServerRead, Stream ServerWrite) CreateDuplexPipes()
     {
         var clientPipe = new Pipe();
@@ -61,3 +34,4 @@ public abstract class IntegrationTestBase : IDisposable
         return lines.ToArray();
     }
 }
+

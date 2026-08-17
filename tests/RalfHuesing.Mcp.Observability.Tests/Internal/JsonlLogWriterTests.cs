@@ -3,39 +3,14 @@ using RalfHuesing.Mcp.Observability.Internal;
 
 namespace RalfHuesing.Mcp.Observability.Tests.Internal;
 
-public sealed class JsonlLogWriterTests : IDisposable
+public sealed class JsonlLogWriterTests : TempDirectoryTestBase
 {
-    private readonly string _tempDirectory;
-
-    public JsonlLogWriterTests()
-    {
-        _tempDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "McpObsTests_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempDirectory);
-    }
-
-    public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_tempDirectory))
-            {
-                Directory.Delete(_tempDirectory, recursive: true);
-            }
-        }
-        catch
-        {
-            // Ignored on cleanup
-        }
-    }
-
     [Fact]
     public void WriteRecord_CreatesFileInSpecifiedDirectoryWithCorrectNaming()
     {
         var options = new McpObservabilityOptions
         {
-            LogDirectory = _tempDirectory
+            LogDirectory = TempDirectory
         };
         var context = new ObservabilityContext(options);
 
@@ -45,7 +20,7 @@ public sealed class JsonlLogWriterTests : IDisposable
         }
 
         var today = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        var expectedDir = Path.Combine(_tempDirectory, context.ServerName, today);
+        var expectedDir = Path.Combine(TempDirectory, context.ServerName, today);
         Assert.True(Directory.Exists(expectedDir));
 
         var expectedFile = Path.Combine(expectedDir, $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl");
@@ -57,7 +32,7 @@ public sealed class JsonlLogWriterTests : IDisposable
     {
         var options = new McpObservabilityOptions
         {
-            LogDirectory = _tempDirectory
+            LogDirectory = TempDirectory
         };
         var context = new ObservabilityContext(options);
 
@@ -105,7 +80,7 @@ public sealed class JsonlLogWriterTests : IDisposable
         }
 
         var today = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        var filePath = Path.Combine(_tempDirectory, context.ServerName, today, $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl");
+        var filePath = Path.Combine(TempDirectory, context.ServerName, today, $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl");
         var lines = File.ReadAllLines(filePath);
 
         Assert.Equal(2, lines.Length);
@@ -126,7 +101,7 @@ public sealed class JsonlLogWriterTests : IDisposable
     {
         var options = new McpObservabilityOptions
         {
-            LogDirectory = _tempDirectory
+            LogDirectory = TempDirectory
         };
         var context = new ObservabilityContext(options);
 
@@ -148,7 +123,7 @@ public sealed class JsonlLogWriterTests : IDisposable
         }
 
         var today = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        var filePath = Path.Combine(_tempDirectory, context.ServerName, today, $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl");
+        var filePath = Path.Combine(TempDirectory, context.ServerName, today, $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl");
         var lines = File.ReadAllLines(filePath);
 
         Assert.Equal(recordCount, lines.Length);
@@ -160,3 +135,4 @@ public sealed class JsonlLogWriterTests : IDisposable
         }
     }
 }
+
