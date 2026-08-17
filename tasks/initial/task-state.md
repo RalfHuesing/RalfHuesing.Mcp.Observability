@@ -18,13 +18,13 @@ current_step: step-001
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T20:25:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T20:27:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-17T20:29:30+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
-| step-001 | EPIC-01 | open | Core Engine Validierung & Unit-Tests fuer Sanitizer und Writer | - | - | - | - |
+| step-001 | EPIC-01 | done | Core Engine Validierung & Unit-Tests fuer Sanitizer und Writer | - | 9a76f52 | approved | 9a76f52 |
 
 ## Config (optional)
 
