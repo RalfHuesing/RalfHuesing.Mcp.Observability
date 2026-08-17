@@ -25,7 +25,8 @@ current_step: step-002
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Core Engine Validierung & Unit-Tests fuer Sanitizer und Writer | - | 9a76f52 | approved | 9a76f52 |
-| step-002 | EPIC-02 | open | MCP Middleware, Feedback-Tool Registrierung und Integrationstests | - | - | - | - |
+| step-002 | EPIC-02 | done | MCP Middleware, Feedback-Tool Registrierung und Integrationstests | - | 9e2c238 | approved | 9e2c238 |
+| step-003 | EPIC-04 | open | Dokumentation, Samples & Package-Verifikation | - | - | - | - |
 
 ## Config (optional)
 
