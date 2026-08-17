@@ -7,8 +7,9 @@ namespace RalfHuesing.Mcp.Observability.Internal;
 /// Thread-safe JSONL writer for the current process instance file.
 /// One file per process: {ServerName}_{PID}_{InstanceId}.jsonl
 /// opened in append mode for the lifetime of the process.
+/// Supports both synchronous and asynchronous disposal and explicit flushing.
 /// </summary>
-internal sealed class JsonlLogWriter : IDisposable
+internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
 {
     private readonly StreamWriter _writer;
     private readonly Lock _lock = new();
@@ -34,11 +35,21 @@ internal sealed class JsonlLogWriter : IDisposable
         }
     }
 
+    internal async Task FlushAsync(CancellationToken ct = default)
+    {
+        await _writer.FlushAsync(ct).ConfigureAwait(false);
+    }
+
     public void Dispose()
     {
         lock (_lock)
         {
             _writer.Dispose();
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _writer.DisposeAsync().ConfigureAwait(false);
     }
 }
