@@ -19,6 +19,7 @@ internal static class ArgumentSanitizer
         "secret",
         "token",
         "apiKey",
+        "apikey",
         "accessToken",
         "authorization",
         "connectionString",
@@ -50,18 +51,30 @@ internal static class ArgumentSanitizer
 
     private static JsonElement SanitizeElement(JsonElement element)
     {
-        if (element.ValueKind != JsonValueKind.Object)
+        if (element.ValueKind != JsonValueKind.Object && element.ValueKind != JsonValueKind.Array)
         {
             return element;
         }
 
         var node = JsonNode.Parse(element.GetRawText());
+        if (node is not null)
+        {
+            SanitizeNode(node);
+        }
+
+        return JsonSerializer.SerializeToElement(node);
+    }
+
+    private static void SanitizeNode(JsonNode node)
+    {
         if (node is JsonObject obj)
         {
             SanitizeObject(obj);
         }
-
-        return JsonSerializer.SerializeToElement(node);
+        else if (node is JsonArray arr)
+        {
+            SanitizeArray(arr);
+        }
     }
 
     private static void SanitizeObject(JsonObject obj)
@@ -72,9 +85,20 @@ internal static class ArgumentSanitizer
             {
                 obj[key] = JsonValue.Create(RedactedMarker);
             }
-            else if (obj[key] is JsonObject nested)
+            else if (obj[key] is { } child)
             {
-                SanitizeObject(nested);
+                SanitizeNode(child);
+            }
+        }
+    }
+
+    private static void SanitizeArray(JsonArray arr)
+    {
+        for (var i = 0; i < arr.Count; i++)
+        {
+            if (arr[i] is { } child)
+            {
+                SanitizeNode(child);
             }
         }
     }
