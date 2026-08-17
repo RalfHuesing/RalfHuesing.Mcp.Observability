@@ -14,9 +14,10 @@ While the default rules define our code quality baseline, specific architectural
 2. **Mandatory Rationale:**
    - Every rule change, override, or threshold increase **MUST be documented** in this file under [Section 3 (Rule Adjustment Log)](#3-rule-adjustment-log).
    - Unjustified or undocumented rule relaxations are not permitted.
-3. **Verification:**
-   - After modifying `RalfHuesing.Mcp.Observability.rules.json`, run `dotnet test` to ensure:
-     - The linter validates successfully (`valExitCode == 0`).
+3. **Verification & Hot-Reload:**
+   - Call the **`reload_config`** MCP tool on `ainetlinter` so that the resident MCP server immediately adopts the new rules without restarting the process.
+   - Run `dotnet test` to ensure:
+     - The linter validates cleanly against the solution (`valExitCode == 0`).
      - The updated rules are synchronized to `.agents/rules/AiNetLinter.mdc`.
 
 ---

@@ -76,7 +76,8 @@ Der resident geladene MCP-Server `ainetlinter` greift direkt auf den Roslyn-Symb
 - **Regelanpassung erlaubt:** Sollten Linter-Regeln für architektonische Gegebenheiten, Framework-Einschränkungen (z. B. MCP-SDK-Tool-Signaturen) oder Teststrukturen zu strikt sein, darf der Agent diese Regeln in `rules.json` anpassen.
 - **Granularität vor Globalität:** Spezifische Pfad- oder Projekt-Overrides (`PathOverrides` bzw. `ProjectOverrides`) sind einer globalen Abschwächung der Grenzwerte immer vorzuziehen.
 - **Strikte Begründungspflicht:** Jede Regeländerung oder Ausnahme **muss zwingend** in [`tests/RalfHuesing.Mcp.Observability.Tests/AiNetLinter/rules/README.md`](tests/RalfHuesing.Mcp.Observability.Tests/AiNetLinter/rules/README.md) dokumentiert werden (Datum, Scope/Regel, Vorher/Nachher, technische Begründung & geprüfte Alternativen).
-- **Synchronisation & Verifikation:** Nach Änderungen an `rules.json` muss `dotnet test` ausgeführt werden, damit die automatische Regel-Synchronisation (`.agents/rules/AiNetLinter.mdc`) und die Validierung erfolgreich durchlaufen.
+- **MCP-Server neu laden (`reload_config`):** Nach jeder Änderung an `rules.json` muss das MCP-Tool `reload_config` aufgerufen werden, damit der resident laufende AiNetLinter-Server die neuen Regeln ohne Prozess-Neustart sofort übernimmt.
+- **Synchronisation & Verifikation:** Zudem muss `dotnet test` ausgeführt werden, damit die automatische Regel-Synchronisation (`.agents/rules/AiNetLinter.mdc`) und die Validierung erfolgreich durchlaufen.
 
 ## 5. Datenformat-Invarianten (verbindlich)
 
