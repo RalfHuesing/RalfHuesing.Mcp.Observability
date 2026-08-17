@@ -60,6 +60,7 @@ jobs:
           path: ./artifacts/*
 
       - name: Authenticate with NuGet.org (Trusted Publishing)
+        id: login
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_nuget == true)
         uses: NuGet/login@v1
         with:
@@ -67,7 +68,7 @@ jobs:
 
       - name: Publish to NuGet.org
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_nuget == true)
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
