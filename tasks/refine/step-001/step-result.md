@@ -93,8 +93,12 @@ und 28/28 Tests grün, AiNetLinter-Check clean.
   ```
 - **Branch:** main
 - **Push:** nein (lokal)
-- **Doku-Commit:** separater, zweiter Commit (Hash steht nicht hier
-  drin — Selbstbezug, siehe `git log`).
+- **Doku-Commits:** zwei separate Commits nach dem Code-Commit
+  (`305a3c4` für `step-result.md` + `codemap.md` + `AiNetLinter.mdc`-
+  Sync, `ea478a7` für `task-state.md`-Update — das task-state-Update
+  wurde in einer zweiten kleinen Doku-Runde nachgezogen, weil ein
+  nachträgliches `--amend` gemäß Coder-SKILL verboten ist).
+  Hashes stehen hier nur zur Information; siehe `git log`.
 
 ## Build-/Test-Output
 
