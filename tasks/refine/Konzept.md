@@ -8,11 +8,11 @@ last_updated: 2026-08-17T22:19:30Z
 open_questions: []
 ---
 
-# Konzept: RalfHuesing.Mcp.Observability v1.1 — Robustheit, Kompatibilität, Diagnostik
+# Konzept: RalfHuesing.Mcp.Observability — Robustheit, Kompatibilität, Diagnostik
 
 ## Ziel (Was)
 
-`RalfHuesing.Mcp.Observability` v1.1.0 behebt die vier in der praktischen
+`RalfHuesing.Mcp.Observability` behebt die vier in der praktischen
 Integration mit `AiNetLinter` identifizierten Hürden (Tool-Schatten-Effekt
 bei manueller `ToolCollection`, fragiles Argument-Casting im Sanitizer,
 fehlende `ServerName`/`ServerVersion`-Overrides, zu enge `internal`-
@@ -21,7 +21,9 @@ Sichtbarkeit) und ergänzt zwei neue öffentliche API-Typen
 manuelle Tool-Registrierung), einen zweiten Sample-Server, vollständige
 Test-Coverage für die neuen Pfade sowie eine CHANGELOG-Datei. Alle
 Änderungen sind additiv — bestehende v1.0.0-Konsumenten bleiben
-vollständig kompatibel, der Bump ist Minor (`1.0.0` → `1.1.0`).
+vollständig kompatibel. Die finale Versionsnummer wird nicht im Konzept
+festgelegt, sondern durch `scripts/create-release.ps1` beim Release
+bestimmt (Stand 2026-08-17: Zielversion `1.0.1`).
 
 ## Warum / Kontext
 
@@ -48,7 +50,7 @@ Observability-Zustands anbieten wollen.
   JSON-Output muss byte-identisch zu v1.0.0 bleiben.
 - xUnit v3, `net10.0`, File-I/O-Tests in temporären Verzeichnissen (§7).
 
-**Bewusste Richtlinien-Änderung für v1.1.** §6 ("Nur `McpObservabilityOptions`
+**Bewusste Richtlinien-Änderung.** §6 ("Nur `McpObservabilityOptions`
 und `McpObservabilityExtensions.WithObservability` sind public") wird
 **gelockert**: `IMcpObservabilityService` und `McpObservabilityTools`
 werden ergänzend public. Die Lockerung wird in `McpObservabilityRichtlinien.mdc`
@@ -144,7 +146,7 @@ public):
   um `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage`,
   `AdditionalSensitiveKeys` erweitern. Neuer Hinweis-Block "Reading logs
   while the server is running" mit `FileShare.ReadWrite`-Beispiel.
-- `CHANGELOG.md` (neu, Keep-a-Changelog-Format, Sektion `## [1.1.0]`)
+- `CHANGELOG.md` (neu, Keep-a-Changelog-Format, Sektion `## [Unreleased]` — die finale Versionsnummer setzt das Release-Skript)
   listet die hinzugefügten Features, die gelockerte §6-Richtlinie, die
   Migrations-Hinweise und das Datum 2026-08-17.
 - `samples/ManualToolCollectionServer/` (neu) — minimaler MCP-Server, der
@@ -175,7 +177,7 @@ sind in Muss-Haven hochgestuft.
 - **Log-Rotation / Cleanup** — bleibt wie in v1.0.0: eine Datei pro
   Prozess, keine Rotation. Konsumenten rotation selbst (oder via
   externes Tool).
-- **Major-Bump v2.0** — alle Änderungen sind additiv, daher v1.1.0.
+- **Major-Bump** — alle Änderungen sind additiv, daher Patch- oder Minor-Bump ausreichend. Die finale Entscheidung liegt beim Release-Skript.
 - **Log-Reader-API** (Query, HTTP-Endpoint) — §2 verbietet es.
 - **Auto-Discovery von `IMcpObservabilityService` durch das SDK** — wäre
   eine SDK-Erweiterung, nicht im Scope dieses Pakets.
@@ -207,9 +209,9 @@ sind in Muss-Haven hochgestuft.
 - **`IMcpObservabilityService.LogCustomRecord` mit beliebigem
   `recordType`:** Verworfen — verletzt §5-Schema-Invariante. Stattdessen
   Konsumenten auf `tool_call`-Records mit eigenem `toolName` verweisen.
-- **Breaking Change v2.0:** Verworfen — keine der Änderungen bricht
-  bestehende Konsumenten (alle Erweiterungen sind additiv oder rein
-  intern). Major-Bump wäre Image-Schaden ohne Mehrwert.
+- **Breaking Change / Major-Bump:** Verworfen — keine der Änderungen
+  bricht bestehende Konsumenten (alle Erweiterungen sind additiv oder
+  rein intern). Major-Bump wäre Image-Schaden ohne Mehrwert.
 - **Sample im selben Projekt statt `samples/ManualToolCollectionServer/`:**
   Verworfen — bestehende Konvention in v1.0.0 ist ein Sample pro
   Integrationsmuster. Konsistenz vor Bequemlichkeit.
@@ -259,7 +261,7 @@ sind in Muss-Haven hochgestuft.
     public."
   - **Bezug:** Direkter Verstoß durch die geplanten
     `IMcpObservabilityService` + `McpObservabilityTools`.
-  - **Vorschlag:** §6 in der Richtlinie explizit für v1.1 lockern, Datum
+  - **Vorschlag:** §6 in der Richtlinie lockern, Datum
     + Begründung + geprüfte Alternativen dokumentieren.
   - **Entscheidung:** übernommen (User-Bestätigung 2026-08-17).
 
@@ -349,7 +351,7 @@ Jeder Step endet mit Coder-Commit + Doku-Commit (sofern Doku betroffen)
   `collection.AddFeedbackTool(services)`.
 
 **Schema-Stabilität:**
-- `ToolCallRecord`-JSONL-Output vor und nach v1.1.0 ist byte-identisch
+- `ToolCallRecord`-JSONL-Output vor und nach diesem Refinement ist byte-identisch
   (gleiche Felder, gleiche Reihenfolge, gleiche Wert-Repräsentation).
   Verifiziert per `ToolCallRecordSchemaStabilityTests`.
 - `schemaVersion` bleibt `1`. `recordType`-Enum bleibt
@@ -368,15 +370,16 @@ Jeder Step endet mit Coder-Commit + Doku-Commit (sofern Doku betroffen)
   `ToolCollection`) mit Copy-Paste-Codebeispielen.
 - `README.md` Options-Tabelle enthält die 4 neuen Properties.
 - `README.md` enthält den `FileShare.ReadWrite`-Hinweis für Live-Reader.
-- `CHANGELOG.md` mit Sektion `## [1.1.0] - 2026-08-17` ist vorhanden.
+- `CHANGELOG.md` ist vorhanden (finale Versionsnummer + Datum setzt das Release-Skript).
 - `.agents/rules/McpObservabilityRichtlinien.mdc` §6 ist gelockert und
   enthält Begründung + Datum.
 
 **Versionierung & Veröffentlichung:**
-- Versionsnummer in `RalfHuesing.Mcp.Observability.csproj` auf `1.1.0`.
-- Kein v2.0-Bump, da alle Änderungen additiv sind.
-- Git-Tag `v1.1.0` nach Drift-Loop-Abschluss (vom User manuell oder
-  via bestehendem `scripts/create-release.ps1`).
+- Konzept legt **keine** konkrete Versionsnummer fest. Die finale
+  Version wird durch `scripts/create-release.ps1` bestimmt
+  (Stand 2026-08-17: Zielversion `1.0.1`).
+- Sicher zu erwarten ist Patch- oder Minor-Bump, da alle Änderungen
+  additiv sind. Die Release-Skript-Logik entscheidet.
 
 ## Offene Punkte
 
