@@ -71,6 +71,13 @@ Der resident geladene MCP-Server `ainetlinter` greift direkt auf den Roslyn-Symb
 - **Regelverstöße prüfen (`get_violations`):** Nach Code-Änderungen aufrufen, um Linter-Regeln (gemäß `rules.json` / `AiNetLinter.mdc`) live zu verifizieren.
 - **Sufficiency-Doctrine:** Liefert ein Linter-Tool ein vollständiges Ergebnis (Hinweis: *"Diese Daten sind vollständig ... kein zusätzliches Read/Grep nötig"*), darf dieses **nicht** redundant per `view_file` oder `grep_search` gegengeprüft werden.
 
+### 4.5 Anpassung von Linter-Regeln & Begründungspflicht
+- **Konfigurationsdatei:** Die Linter-Regeln liegen in `tests/RalfHuesing.Mcp.Observability.Tests/AiNetLinter/rules/RalfHuesing.Mcp.Observability.rules.json`.
+- **Regelanpassung erlaubt:** Sollten Linter-Regeln für architektonische Gegebenheiten, Framework-Einschränkungen (z. B. MCP-SDK-Tool-Signaturen) oder Teststrukturen zu strikt sein, darf der Agent diese Regeln in `rules.json` anpassen.
+- **Granularität vor Globalität:** Spezifische Pfad- oder Projekt-Overrides (`PathOverrides` bzw. `ProjectOverrides`) sind einer globalen Abschwächung der Grenzwerte immer vorzuziehen.
+- **Strikte Begründungspflicht:** Jede Regeländerung oder Ausnahme **muss zwingend** in [`tests/RalfHuesing.Mcp.Observability.Tests/AiNetLinter/rules/README.md`](tests/RalfHuesing.Mcp.Observability.Tests/AiNetLinter/rules/README.md) dokumentiert werden (Datum, Scope/Regel, Vorher/Nachher, technische Begründung & geprüfte Alternativen).
+- **Synchronisation & Verifikation:** Nach Änderungen an `rules.json` muss `dotnet test` ausgeführt werden, damit die automatische Regel-Synchronisation (`.agents/rules/AiNetLinter.mdc`) und die Validierung erfolgreich durchlaufen.
+
 ## 5. Datenformat-Invarianten (verbindlich)
 
 Das JSONL-Schema ist die zentrale Schnittstelle des Pakets — Änderungen daran sind Breaking Changes:
