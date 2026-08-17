@@ -1,12 +1,11 @@
 ---
-status: draft  # draft | ready
+status: ready  # draft | ready
 type: konzept
 project_kind: brownfield
 estimated_scope: medium
 rules_dir: .agents/rules
-last_updated: 2026-08-17T22:15:00Z
-open_questions:
-  - Keine — bereit für User-Bestätigung (siehe Schritt 6)
+last_updated: 2026-08-17T22:19:30Z
+open_questions: []
 ---
 
 # Konzept: RalfHuesing.Mcp.Observability v1.1 — Robustheit, Kompatibilität, Diagnostik
