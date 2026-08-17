@@ -6,7 +6,7 @@ last_updated: 2026-08-17T22:59:30+02:00
 total_steps: 1
 rules_dir: .agents/rules
 total_steps: 0
-current_step: step-001
+current_step: step-002
 ---
 
 # Task State: refine
