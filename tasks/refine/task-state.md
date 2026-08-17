@@ -1,8 +1,8 @@
 ---
-status: blocked
+status: executing
 task: refine
 started_at: 2026-08-17T22:39:30+02:00
-last_updated: 2026-08-17T23:39:00+02:00
+last_updated: 2026-08-17T23:45:00+02:00
 total_steps: 2
 rules_dir: .agents/rules
 current_step: step-002
@@ -12,38 +12,21 @@ current_step: step-002
 
 ## Übersicht
 
-- **Task-Status:** `blocked` (User-Pause — siehe unten)
-- **Steps gesamt:** 0 (regulär + Korrekturen — weicher Check-in bei
+- **Task-Status:** `executing`
+- **Steps gesamt:** 2 (regulär + Korrekturen — weicher Check-in bei
   jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
-- **Aktueller Schritt:** `step-002` (Coder done, Kritiker aborted)
+- **Aktueller Schritt:** `step-002` (approved, Übergang zu step-003)
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T22:39:30+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T23:39:00+02:00
-
-## Pause-Hinweis (2026-08-17 23:39, User-Anweisung)
-
-> *„stoppe wenn der kritiker fertig ist (mache ine passende notiz)"*
-
-- **Auslöser:** explizite User-Anweisung über aktuelle Session.
-- **Stand bei Pause:** step-001 (EPIC-01) `done` + `approved`.
-  step-002 (EPIC-02) `done (pending audit)` von Coder-Seite
-  (`50ac699`, 41/41 Tests grün, AiNetLinter clean) — **Kritiker-Lauf
-  wurde vom User abgebrochen, bevor `step-review.md` geschrieben
-  werden konnte.** Kein Verdict für step-002 vorhanden.
-- **Wie weiter:** sobald der User den Loop wieder aufnimmt, den
-  Kritiker für step-002 erneut aufrufen (gleiche Inputs: Plan +
-  Result + Commit-Diff + Konzept + Regeln), dann EPIC-02 abhaken
-  und mit Planer-Aufruf für step-003 (EPIC-03) weitermachen.
-- **Kein Datenverlust:** alle Commits lokal auf `main`, kein Push,
-  keine uncommitteten Änderungen im Working Tree.
+- **Zuletzt aktualisiert:** 2026-08-17T23:45:00+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Options-Erweiterung, Override-Kette und IMcpObservabilityService | - | e318710 | approved (`305a3c4`+`ea478a7`+`fe13039`) | e318710 |
-| step-002 | EPIC-02 | done (pending audit) | Sanitizer-Generalisierung, LogRecord-Type-Wechsel und Response-Logging | - | 50ac699 | **PENDING — Kritiker-Lauf bei User-Pause abgebrochen** | 50ac699 |
+| step-002 | EPIC-02 | done | Sanitizer-Generalisierung, LogRecord-Type-Wechsel und Response-Logging | - | 50ac699 | approved | 50ac699 |
 
 ## Config (optional)
 

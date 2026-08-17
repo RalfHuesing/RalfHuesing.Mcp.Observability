@@ -71,7 +71,7 @@ Versionsnummer setzt `scripts/create-release.ps1`.
       Singleton unter beiden Typen registriert. Tests: `McpOptionsServerNameOverrideTests`
       (Integration). Konzept §„Optionen-Erweiterung" + §„Diagnostik-Service".
 
-- [ ] **EPIC-02: Sanitizer-Generalisierung, LogRecord-Type-Wechsel & Response-Logging** _(in Arbeit → step-002)_ —
+- [x] **EPIC-02: Sanitizer-Generalisierung, LogRecord-Type-Wechsel & Response-Logging** _(abgeschlossen via step-002 → `50ac699` — approved)_ —
       `ArgumentSanitizer` auf `Sanitize(object? rawArguments, IEnumerable<string>? additionalKeys = null)`
       generalisieren (akzeptiert `IReadOnlyDictionary<string, JsonElement>`,
       `IReadOnlyDictionary<string, object?>`, `JsonObject`, `IDictionary<string, object?>`);
