@@ -1,5 +1,9 @@
 # RalfHuesing.Mcp.Observability
 
+[![NuGet Version](https://img.shields.io/nuget/v/RalfHuesing.Mcp.Observability.svg?style=flat-square)](https://www.nuget.org/packages/RalfHuesing.Mcp.Observability)
+[![Build & Publish](https://img.shields.io/github/actions/workflow/status/RalfHuesing/RalfHuesing.Mcp.Observability/build.yml?branch=main&style=flat-square)](https://github.com/RalfHuesing/RalfHuesing.Mcp.Observability/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+
 A NuGet package that adds unified JSONL tool-call logging and a structured
 agent feedback channel to any MCP server built on the official
 [`ModelContextProtocol`](https://github.com/modelcontextprotocol/csharp-sdk) SDK.
