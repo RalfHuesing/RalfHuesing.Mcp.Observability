@@ -7,8 +7,15 @@
     commits the bump, creates a git tag (e.g. v1.0.1), and pushes to origin.
     This triggers the GitHub Actions workflow to build, test, pack, and publish to NuGet.org.
 
+    When executed without parameters, the patch version is automatically incremented
+    (e.g., 1.0.0 -> 1.0.1 -> 1.0.2).
+
 .PARAMETER Version
-    The target release version (e.g., '1.0.1' or 'v1.0.1').
+    Optional explicit target release version (e.g., '1.0.1' or 'v1.0.1').
+    If omitted, the version is automatically calculated based on the current .csproj version.
+
+.PARAMETER Type
+    The increment type when -Version is omitted: 'patch' (default), 'minor', or 'major'.
 
 .PARAMETER Message
     Optional release message or description.
@@ -17,14 +24,30 @@
     If specified, performs all builds and tests but skips pushing git commits and tags.
 
 .EXAMPLE
-    ./scripts/create-release.ps1 -Version 1.0.1
-    ./scripts/create-release.ps1 -Version 1.0.1 -DryRun
+    ./scripts/create-release.ps1
+    # Auto-increments patch: 1.0.0 -> 1.0.1
+
+.EXAMPLE
+    ./scripts/create-release.ps1 -Type minor
+    # Auto-increments minor: 1.0.0 -> 1.1.0
+
+.EXAMPLE
+    ./scripts/create-release.ps1 -Version 1.2.3
+    # Sets explicit version 1.2.3
+
+.EXAMPLE
+    ./scripts/create-release.ps1 -DryRun
+    # Tests the release build and package without pushing to git
 #>
 
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory = $true, Position = 0, HelpMessage = "The release version (e.g., 1.0.1)")]
+    [Parameter(Mandatory = $false, Position = 0)]
     [string]$Version,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('patch', 'minor', 'major')]
+    [string]$Type = 'patch',
 
     [Parameter(Mandatory = $false)]
     [string]$Message,
@@ -50,20 +73,7 @@ function Write-Err ([string]$text) {
     Write-Host "  [ERROR] $text" -ForegroundColor Red
 }
 
-# 1. Normalize and Validate Version
-$cleanVersion = $Version.TrimStart('v', 'V').Trim()
-if ($cleanVersion -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$') {
-    Write-Err "Invalid semantic version: '$Version'. Expected format like '1.0.1' or '1.1.0-preview.1'."
-    exit 1
-}
-$tagName = "v$cleanVersion"
-
-Write-Step "Starting Release Flow for $tagName"
-if ($DryRun) {
-    Write-Warn "DRY RUN MODE: No git push will be executed."
-}
-
-# 2. Check Repository Root & Paths
+# 1. Resolve Repository Root & csproj
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptDir "..")
 Set-Location $repoRoot
@@ -72,6 +82,47 @@ $csprojPath = Join-Path $repoRoot "src/RalfHuesing.Mcp.Observability/RalfHuesing
 if (-not (Test-Path $csprojPath)) {
     Write-Err "Could not find csproj at $csprojPath"
     exit 1
+}
+
+# 2. Determine Current and Target Version
+[xml]$csprojXml = Get-Content $csprojPath -Raw
+$currentVersionNode = $csprojXml.SelectSingleNode("//PropertyGroup/Version")
+$currentVersion = if ($currentVersionNode -ne $null -and -not [string]::IsNullOrWhiteSpace($currentVersionNode.InnerText)) {
+    $currentVersionNode.InnerText.Trim()
+} else {
+    "1.0.0"
+}
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    if ($currentVersion -match '^(\d+)\.(\d+)\.(\d+)(.*)$') {
+        $major = [int]$Matches[1]
+        $minor = [int]$Matches[2]
+        $patch = [int]$Matches[3]
+        $suffix = $Matches[4]
+
+        $cleanVersion = switch ($Type.ToLowerInvariant()) {
+            'major' { "$($major + 1).0.0" }
+            'minor' { "$major.$($minor + 1).0" }
+            default { "$major.$minor.$($patch + 1)" }
+        }
+        Write-Host "Auto-incrementing version ($Type): $currentVersion -> $cleanVersion" -ForegroundColor Magenta
+    } else {
+        Write-Err "Current version '$currentVersion' in csproj is not a valid semantic version (e.g. 1.0.0)."
+        exit 1
+    }
+} else {
+    $cleanVersion = $Version.TrimStart('v', 'V').Trim()
+}
+
+if ($cleanVersion -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$') {
+    Write-Err "Invalid semantic version: '$cleanVersion'. Expected format like '1.0.1' or '1.1.0-preview.1'."
+    exit 1
+}
+$tagName = "v$cleanVersion"
+
+Write-Step "Starting Release Flow for $tagName (Current: $currentVersion)"
+if ($DryRun) {
+    Write-Warn "DRY RUN MODE: No git push or permanent file modification will be executed."
 }
 
 # 3. Check Git Status
@@ -136,22 +187,21 @@ Write-Success "Package creation verified"
 if ($DryRun) {
     Write-Step "DryRun completed successfully"
     Write-Host "`nDryRun summary:"
-    Write-Host "  - Target Tag: $tagName"
-    Write-Host "  - Version:    $cleanVersion"
-    Write-Host "  - Tests:      Passed (Release mode)"
-    Write-Host "  - Build:      Passed (Release mode)"
-    Write-Host "  - Packaging:  Passed ($cleanVersion.nupkg / .snupkg)"
+    Write-Host "  - Current Version: $currentVersion"
+    Write-Host "  - Target Version:  $cleanVersion"
+    Write-Host "  - Target Tag:      $tagName"
+    Write-Host "  - Tests:           Passed (Release mode)"
+    Write-Host "  - Build:           Passed (Release mode)"
+    Write-Host "  - Packaging:       Passed ($cleanVersion.nupkg / .snupkg)"
     Write-Host "`nTo execute the actual release, re-run without -DryRun:"
-    Write-Host "  ./scripts/create-release.ps1 -Version $cleanVersion" -ForegroundColor Yellow
+    Write-Host "  ./scripts/create-release.ps1" -ForegroundColor Yellow
     exit 0
 }
 
 # 8. Update .csproj Version if necessary
 Write-Step "Updating .csproj version to $cleanVersion"
-[xml]$csprojXml = Get-Content $csprojPath -Raw
-$versionNode = $csprojXml.SelectSingleNode("//PropertyGroup/Version")
-if ($versionNode -ne $null) {
-    $versionNode.InnerText = $cleanVersion
+if ($currentVersionNode -ne $null) {
+    $currentVersionNode.InnerText = $cleanVersion
     $csprojXml.Save($csprojPath)
     Write-Success "Updated <Version> in $csprojPath"
 } else {
@@ -171,18 +221,18 @@ $releaseNote = if ($Message) { $Message } else { "Release $tagName" }
 git tag -a $tagName -m "$releaseNote"
 Write-Success "Created git tag $tagName"
 
-# 9. Push to GitHub
+# 10. Push to GitHub
 Write-Step "Pushing commit and tag to origin"
 git push origin $currentBranch
 git push origin $tagName
 Write-Success "Pushed to origin ($tagName)"
 
-# 10. Summary & Links
+# 11. Summary & Links
 Write-Step "Release initiated successfully!"
 Write-Host @"
 
   Tag:          $tagName
-  Version:      $cleanVersion
+  Version:      $cleanVersion (from $currentVersion)
   GitHub Run:   https://github.com/RalfHuesing/RalfHuesing.Mcp.Observability/actions
   Releases:     https://github.com/RalfHuesing/RalfHuesing.Mcp.Observability/releases
   NuGet.org:    https://www.nuget.org/packages/RalfHuesing.Mcp.Observability/$cleanVersion
