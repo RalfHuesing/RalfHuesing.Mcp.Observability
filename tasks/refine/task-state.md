@@ -2,7 +2,7 @@
 status: executing
 task: refine
 started_at: 2026-08-17T22:39:30+02:00
-last_updated: 2026-08-17T22:45:30+02:00
+last_updated: 2026-08-17T22:59:30+02:00
 total_steps: 1
 rules_dir: .agents/rules
 total_steps: 0
@@ -26,7 +26,7 @@ current_step: step-001
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
-| step-001 | EPIC-01 | in_progress | Options-Erweiterung, Override-Kette und IMcpObservabilityService | - | - | - | - |
+| step-001 | EPIC-01 | done (pending audit) | Options-Erweiterung, Override-Kette und IMcpObservabilityService | - | e318710 / 305a3c4 | - | e318710 (code), 305a3c4 (docs) |
 
 ## Config (optional)
 
