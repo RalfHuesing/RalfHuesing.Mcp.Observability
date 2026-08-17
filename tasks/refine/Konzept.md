@@ -4,7 +4,7 @@ type: konzept
 project_kind: brownfield
 estimated_scope: medium
 rules_dir: .agents/rules
-last_updated: 2026-08-17T22:19:30Z
+last_updated: 2026-08-17T22:29:30Z
 open_questions: []
 ---
 
@@ -16,14 +16,16 @@ open_questions: []
 Integration mit `AiNetLinter` identifizierten Hürden (Tool-Schatten-Effekt
 bei manueller `ToolCollection`, fragiles Argument-Casting im Sanitizer,
 fehlende `ServerName`/`ServerVersion`-Overrides, zu enge `internal`-
-Sichtbarkeit) und ergänzt zwei neue öffentliche API-Typen
+Sichtbarkeit), ergänzt zwei neue öffentliche API-Typen
 (`IMcpObservabilityService` für Diagnostik, `McpObservabilityTools` für
-manuelle Tool-Registrierung), einen zweiten Sample-Server, vollständige
-Test-Coverage für die neuen Pfade sowie eine CHANGELOG-Datei. Alle
-Änderungen sind additiv — bestehende v1.0.0-Konsumenten bleiben
-vollständig kompatibel. Die finale Versionsnummer wird nicht im Konzept
-festgelegt, sondern durch `scripts/create-release.ps1` beim Release
-bestimmt (Stand 2026-08-17: Zielversion `1.0.1`).
+manuelle Tool-Registrierung), führt Response-Logging mit konfigurierbarer
+Längenbegrenzung ein (Default: unbegrenzt), liefert einen zweiten
+Sample-Server, vollständige Test-Coverage für die neuen Pfade sowie
+eine CHANGELOG-Datei. Alle Änderungen sind additiv — bestehende
+v1.0.0-Konsumenten bleiben vollständig kompatibel. Die finale
+Versionsnummer wird nicht im Konzept festgelegt, sondern durch
+`scripts/create-release.ps1` beim Release bestimmt (Stand 2026-08-17:
+Zielversion `1.0.1`).
 
 ## Warum / Kontext
 
@@ -81,6 +83,51 @@ werden ergänzend public. Die Lockerung wird in `McpObservabilityRichtlinien.mdc
   Default-Liste + `additionalKeys`.
 - `ToolCallLoggingHandler.CreateRecord` reicht `request.Params?.Arguments`
   ohne Cast direkt an `Sanitize` weiter.
+- Zusätzliche Methode `Sanitize(string? rawText, IEnumerable<string>?)`
+  für Response-Strings: erkennt `key=value` / `"key":"value"`-Muster
+  und redacted bekannte sensitive Keys (gleiche `SensitiveKeys`-Quelle
+  wie für Argumente). Auf den konkatenierten `TextContent`-Response
+  anwenden, bevor er ins `response`-Feld geschrieben wird.
+
+**Response-Logging** (`Internal/ToolCallLoggingHandler.cs` +
+`Internal/LogRecords.cs` + `McpObservabilityOptions.cs`):
+- Neue Options-Properties:
+  - `EnableResponseLogging` (bool, default `true`): master switch für
+    Response-Inhalt im `tool_call`-Record.
+  - `MaxResponseLength` (int, default `0` = unbegrenzt): harte
+    Längengrenze in Zeichen für den `response`-String. Bei `> 0` und
+    Response-Länge > Limit: kürzen + Truncation-Marker
+    `… [truncated at N chars]` anhängen.
+  - Konsumenten-spezifische Längenbegrenzung wird in `appsettings.json`
+    des konsumierenden Servers gesetzt (kein globaler Default).
+- Neue additive Felder im `ToolCallRecord` (JSONL-Output):
+  - `response` (string?): konkatenierte `TextContent`-Blöcke aus
+    `CallToolResult.Content` (mit `\n` als Trenner), sanitized. `null`,
+    wenn `EnableResponseLogging = false`.
+  - `responseLength` (int, immer befüllt): Gesamtanzahl Zeichen des
+    **unkürzten, unsanitized** Response-Textes — Grundlage für
+    Statistiken, unabhängig von Truncation/Sanitization.
+  - `responseLines` (int, immer befüllt): Zeilenanzahl des
+    unkürzten Response-Textes.
+  - `responseTruncated` (bool, immer befüllt): `true`, wenn
+    Truncation-Marker angehängt wurde.
+  - `nonTextContentBlocks` (int, immer befüllt): Anzahl
+    `ImageContent` / `AudioContent` / `EmbeddedResource`-Blöcke
+    im Response (werden nicht ins `response`-Feld geschrieben).
+- Response-Extraktion in `ToolCallLoggingHandler.CreateRecord`:
+  - Iteriert `result.Content`, filtert auf `TextContent`,
+    konkateniert mit `\n`. Andere Block-Typen werden in
+    `nonTextContentBlocks` gezählt.
+  - Misst `responseLength`/`responseLines` **vor** Sanitization und
+    Truncation (echte Antwortgröße), damit Statistiken nicht durch
+    Redaction/Truncation verzerrt werden.
+  - Bei `IsErrorResult = true`: `response` enthält den Fehler-Volltext,
+    `errorMessage` das Summary aus dem ersten Text-Block. Beide
+    Felder, kein Konflikt.
+- Sanitizer läuft auf dem Response-String (siehe
+  `ArgumentSanitizer.Sanitize(string?, ...)` oben). Damit werden
+  versehentlich zurückgegebene Tokens/Passwörter genauso redacted
+  wie Request-Argumente.
 
 **JSONL-Schema-Stabilität** (`Internal/LogRecords.cs`):
 - `ToolCallRecord.Arguments` wechselt intern von
@@ -138,14 +185,40 @@ public):
 5. **JSONL-Schema-Invariante:** Neuer Test
    `ToolCallRecordSchemaStabilityTests`, der das JSON-Output-Schema vor
    und nach dem Type-Wechsel auf `IReadOnlyDictionary<string, object?>`
-   byte-genau vergleicht.
+   byte-genau vergleicht — bei `EnableResponseLogging = false` und
+   ohne Response-Felder.
+6. `ResponseLoggingTests` (neu, Internal): verifiziert das neue
+   Response-Logging in allen Varianten:
+   - `EnableResponseLogging = true` → `response`-Feld enthält
+     konkatenierten `TextContent`, `responseLength`/`responseLines`
+     stimmen mit dem ursprünglichen Text überein.
+   - `EnableResponseLogging = false` → `response` = `null`,
+     `responseLength`/`responseLines` aber befüllt (Konsistenz der
+     Statistik).
+   - `MaxResponseLength = 0` → kein Truncation, Response ungekürzt.
+   - `MaxResponseLength = 100` und Response = 250 Zeichen → Response
+     auf 100 Zeichen gekürzt + `… [truncated at 100 chars]`-Marker,
+     `responseTruncated = true`, `responseLength` bleibt 250 (echte
+     Größe).
+   - `IsErrorResult = true` → `response` enthält den Fehler-Volltext,
+     `errorMessage` das Summary. Beide Felder, kein Konflikt.
+   - Sanitizer läuft auf Response: bei `Text = "token=abc123"` wird
+     `token` durch `***REDACTED***` ersetzt, aber `responseLength`
+     bleibt bei der **originalen** Zeichenzahl (Sanitization ersetzt
+     nur den Wert, nicht die Länge).
+   - `nonTextContentBlocks` zählt `ImageContent`/`AudioContent`/
+     `EmbeddedResource` korrekt; erscheint nicht im `response`-Feld.
 
 **Dokumentation**:
 - `README.md` — neue Sektion "Manual ToolCollection" mit Copy-Paste-Beispiel
   für den Reflection-freien manuellen Weg. Tabelle der Options-Properties
   um `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage`,
-  `AdditionalSensitiveKeys` erweitern. Neuer Hinweis-Block "Reading logs
-  while the server is running" mit `FileShare.ReadWrite`-Beispiel.
+  `AdditionalSensitiveKeys`, `EnableResponseLogging` und
+  `MaxResponseLength` erweitern. Neuer Abschnitt "Response Logging"
+  mit Hinweis auf Default-Verhalten (vollständig, unbegrenzt) und
+  Override-Beispiel in `appsettings.json`. Neuer Hinweis-Block
+  "Reading logs while the server is running" mit
+  `FileShare.ReadWrite`-Beispiel.
 - `CHANGELOG.md` (neu, Keep-a-Changelog-Format, Sektion `## [Unreleased]` — die finale Versionsnummer setzt das Release-Skript)
   listet die hinzugefügten Features, die gelockerte §6-Richtlinie, die
   Migrations-Hinweise und das Datum 2026-08-17.
@@ -222,7 +295,8 @@ sind in Muss-Haven hochgestuft.
 ## Wo im Projekt
 
 - `src/RalfHuesing.Mcp.Observability/McpObservabilityOptions.cs` —
-  erweitern (4 neue Properties, XML-Docs).
+  erweitern (4 Audit-Properties + `EnableResponseLogging` +
+  `MaxResponseLength`, XML-Docs).
 - `src/RalfHuesing.Mcp.Observability/McpObservabilityExtensions.cs` —
   `IPostConfigureOptions<McpServerOptions>` registrieren.
 - `src/RalfHuesing.Mcp.Observability/IMcpObservabilityService.cs` — **neu**,
@@ -232,19 +306,26 @@ sind in Muss-Haven hochgestuft.
 - `src/RalfHuesing.Mcp.Observability/Internal/ArgumentSanitizer.cs` —
   Signatur ändern, alle Dict-Typen normalisieren.
 - `src/RalfHuesing.Mcp.Observability/Internal/ToolCallLoggingHandler.cs` —
-  Cast entfernen, `Sanitize(object?)` aufrufen.
+  Cast entfernen, `Sanitize(object?)` aufrufen; zusätzlich Response
+  aus `result.Content` extrahieren (nur `TextContent`, mit `\n`
+  konkateniert), Sanitizer auch auf Response anwenden, Truncation
+  bei `MaxResponseLength > 0` durchführen, Metadaten-Felder befüllen.
 - `src/RalfHuesing.Mcp.Observability/Internal/ObservabilityContext.cs` —
   `IMcpObservabilityService` implementieren, ServerName-Override-Logik.
 - `src/RalfHuesing.Mcp.Observability/Internal/JsonlLogWriter.cs` —
   `IAsyncDisposable` + `FlushAsync`.
 - `src/RalfHuesing.Mcp.Observability/Internal/LogRecords.cs` —
-  `ToolCallRecord.Arguments` Typ-Wechsel, JSON-Output invariant.
+  `ToolCallRecord.Arguments` Typ-Wechsel + neue additive Felder für
+  Response-Logging (`Response`, `ResponseLength`, `ResponseLines`,
+  `ResponseTruncated`, `NonTextContentBlocks`). JSON-Output invariant
+  für Records ohne Response-Logging.
 - `tests/RalfHuesing.Mcp.Observability.Tests/Internal/ArgumentSanitizerTests.cs` —
   erweitern (Dictionary, JsonObject).
 - `tests/RalfHuesing.Mcp.Observability.Tests/Integration/McpServerOptionsToolCollectionTests.cs` — **neu**.
 - `tests/RalfHuesing.Mcp.Observability.Tests/Integration/McpOptionsServerNameOverrideTests.cs` — **neu**.
 - `tests/RalfHuesing.Mcp.Observability.Tests/Internal/JsonlLogWriterFlushTests.cs` — **neu**.
 - `tests/RalfHuesing.Mcp.Observability.Tests/Internal/ToolCallRecordSchemaStabilityTests.cs` — **neu**.
+- `tests/RalfHuesing.Mcp.Observability.Tests/Internal/ResponseLoggingTests.cs` — **neu**.
 - `samples/ManualToolCollectionServer/` — **neu**, parallel zu
   `samples/MinimalMcpServerWithObservability/`.
 - `README.md` — Options-Tabelle, Dual-Use-Sektion, File-Locking-Hinweis.
@@ -297,6 +378,22 @@ sind in Muss-Haven hochgestuft.
   - **Entscheidung:** übernommen, aber nur als Optimierung im selben
     Step — kein eigener Step nötig.
 
+- **`CallToolResult.Content` ist polymorph — Response-Logging braucht
+  Filter-Logik** (Mitdenken-Fund)
+  - **Gefunden:** `ModelContextProtocol.Protocol.Content` ist eine
+    Union aus `TextContent`, `ImageContent`, `AudioContent`,
+    `EmbeddedResource`. Serialisierung ohne Filter würde
+    `ImageContent` als Base64 in die JSONL-Datei schreiben — bei
+    einem Tool wie `get_file_skeleton` schnell mehrere MB pro Record.
+  - **Bezug:** Datenhygiene, Lesbarkeit der JSONL, §8
+    (Dokumentations-Objektivität — Verhalten soll vorhersehbar sein).
+  - **Vorschlag:** Nur `TextContent` ins `response`-Feld; andere
+    Block-Typen werden in `nonTextContentBlocks` gezählt, nicht im
+    Response serialisiert. Erweiterung um binäre Inhalte
+    (`LogBinaryContent`-Flag) bleibt explizit Non-Goal für v1.1.
+  - **Entscheidung:** übernommen, im selben Step wie Response-Logging
+    umgesetzt.
+
 ## Wie (grober Ansatz)
 
 Drift-Loop-Planer wird daraus ~6-8 Steps ableiten. Reihenfolge hier nur
@@ -306,9 +403,17 @@ als Anker, nicht bindend:
    `ServerName`/`ServerVersion`/`FeedbackConfirmationMessage`/
    `AdditionalSensitiveKeys` Properties; Auflösungsreihenfolge
    dokumentiert.
-2. **ArgumentSanitizer generalisieren + LogRecord-Type-Wechsel** —
-   `Sanitize(object?)`, alle Dict-Typen; `ToolCallRecord.Arguments` auf
-   `IReadOnlyDictionary<string, object?>?`; JSON-Output-Invariante per
+2. **ArgumentSanitizer generalisieren + LogRecord-Type-Wechsel +
+   Response-Logging** —
+   `Sanitize(object?)`, alle Dict-Typen; `Sanitize(string?, ...)` neu
+   für Response-Strings; `ToolCallRecord.Arguments` auf
+   `IReadOnlyDictionary<string, object?>?`; `ToolCallRecord` um
+   `Response`/`ResponseLength`/`ResponseLines`/`ResponseTruncated`/
+   `NonTextContentBlocks` erweitern; Response-Extraktion in
+   `ToolCallLoggingHandler` (nur `TextContent`, mit `\n` konkateniert,
+   Sanitizer danach, Truncation bei `MaxResponseLength > 0`);
+   `ResponseLength`/`ResponseLines` werden **vor** Sanitization +
+   Truncation gemessen (echte Antwortgröße). JSON-Output-Invariante per
    Test sichern.
 3. **IMcpObservabilityService + ObservabilityContext-Implementierung** —
    public Interface, DI-Registrierung.
@@ -349,18 +454,40 @@ Jeder Step endet mit Coder-Commit + Doku-Commit (sofern Doku betroffen)
 - Konsumenten können das Feedback-Tool **ohne Reflection** in eine
   manuelle `ToolCollection` einhängen via
   `collection.AddFeedbackTool(services)`.
+- `McpObservabilityOptions.EnableResponseLogging = true` (Default)
+  schreibt den Tool-Response-Volltext (sanitized, `TextContent`-
+  konkateniert) ins `response`-Feld jedes `tool_call`-Records.
+- `McpObservabilityOptions.MaxResponseLength = 0` (Default) loggt
+  ungekürzt; `> 0` kappt den Response bei N Zeichen und hängt den
+  Truncation-Marker `… [truncated at N chars]` an.
+- `responseLength` und `responseLines` werden **immer** befüllt (auch
+  bei `EnableResponseLogging = false`), damit Statistiken konsistent
+  bleiben. Die Messung erfolgt **vor** Sanitization + Truncation.
+- `nonTextContentBlocks` zählt `ImageContent`/`AudioContent`/
+  `EmbeddedResource` korrekt; diese Block-Typen erscheinen nie im
+  `response`-Feld, nur als Anzahl.
+- Bei `IsErrorResult = true` enthält `response` den Fehler-Volltext,
+  `errorMessage` das Summary aus dem ersten Text-Block (kein
+  Konflikt, beide Felder).
 
 **Schema-Stabilität:**
-- `ToolCallRecord`-JSONL-Output vor und nach diesem Refinement ist byte-identisch
-  (gleiche Felder, gleiche Reihenfolge, gleiche Wert-Repräsentation).
+- Records **ohne** Response-Logging (oder mit
+  `EnableResponseLogging = false`) bleiben byte-identisch zu v1.0.0 —
+  gleiche Felder, gleiche Reihenfolge, gleiche Wert-Repräsentation.
   Verifiziert per `ToolCallRecordSchemaStabilityTests`.
+- Records **mit** Response-Logging erhalten additive neue Felder
+  (`response`, `responseLength`, `responseLines`, `responseTruncated`,
+  `nonTextContentBlocks`). Die Erweiterung ist nicht-breaking für
+  Konsumenten, die auf Feld-Existenz prüfen — alte Felder bleiben
+  unverändert.
 - `schemaVersion` bleibt `1`. `recordType`-Enum bleibt
   `"tool_call" | "feedback"`.
 
 **Qualität:**
 - `dotnet build` mit `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`
   ist grün.
-- `dotnet test` ist grün: alle bestehenden Tests + 4 neue Tests.
+- `dotnet test` ist grün: alle bestehenden Tests + 5 neue Tests
+  (4 Audit-bezogene + `ResponseLoggingTests`).
 - `AiNetLinter` (Referenz-Integration) kann auf die neuen public APIs
   umgestellt werden und entfernt seine Reflection-Workarounds — Smoke-
   Test dokumentiert in `task-summary.md`.
