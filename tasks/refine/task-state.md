@@ -2,7 +2,7 @@
 status: executing
 task: refine
 started_at: 2026-08-17T22:39:30+02:00
-last_updated: 2026-08-17T23:08:30+02:00
+last_updated: 2026-08-17T23:25:00+02:00
 total_steps: 2
 rules_dir: .agents/rules
 current_step: step-002
@@ -15,17 +15,18 @@ current_step: step-002
 - **Task-Status:** `executing`
 - **Steps gesamt:** 0 (regulär + Korrekturen — weicher Check-in bei
   jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
-- **Aktueller Schritt:** `step-001`
+- **Aktueller Schritt:** `step-002`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T22:39:30+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T23:03:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-17T23:25:00+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Options-Erweiterung, Override-Kette und IMcpObservabilityService | - | e318710 | approved (`305a3c4`+`ea478a7`+`fe13039`) | e318710 |
+| step-002 | EPIC-02 | done (pending audit) | Sanitizer-Generalisierung, LogRecord-Type-Wechsel und Response-Logging | - | 50ac699 | - | 50ac699 |
 
 ## Config (optional)
 

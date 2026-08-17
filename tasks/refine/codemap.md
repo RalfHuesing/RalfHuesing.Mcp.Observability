@@ -2,7 +2,7 @@
 task: refine
 type: codemap
 maintained_by: planer, coder, kritiker
-last_updated: 2026-08-17T22:42:30+02:00
+last_updated: 2026-08-17T23:25:00+02:00
 ---
 
 # CodeMap: refine — Robustheit, Kompatibilität, Diagnostik (v1.0.1)
@@ -65,9 +65,9 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 - **`src/RalfHuesing.Mcp.Observability/McpObservabilityOptions.cs`** — `public sealed class`
       mit `Enabled`, `EnableToolCallLogging`, `EnableFeedbackTool`, `LogDirectory`,
       `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage`,
-      `AdditionalSensitiveKeys`, plus `public const string DefaultFeedbackConfirmationMessage`.
-      Wird in EPIC-02 um 2 weitere Properties (`EnableResponseLogging`, `MaxResponseLength`)
-      erweitert. (zuletzt: step-001)
+      `AdditionalSensitiveKeys`, `EnableResponseLogging`, `MaxResponseLength`,
+      plus `public const string DefaultFeedbackConfirmationMessage`.
+      (zuletzt: step-002)
 - **`src/RalfHuesing.Mcp.Observability/IMcpObservabilityService.cs`** — `public interface`
       (neu in EPIC-01, erste bewusste Lockerung von Richtlinie §6), sechs
       Read-only-Properties für Diagnostik (`IsEnabled`, `ServerName`,
@@ -84,23 +84,27 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 ### Internal (Namespace `RalfHuesing.Mcp.Observability.Internal`)
 
 - **`src/RalfHuesing.Mcp.Observability/Internal/LogRecords.cs`** — `internal sealed record`
-      `ToolCallRecord` + `FeedbackRecord`, Felder exakt nach JSONL-Schema §5.
-      `ToolCallRecord.Arguments` ist `IReadOnlyDictionary<string, JsonElement>?`
-      (heute); in EPIC-02 Wechsel auf `IReadOnlyDictionary<string, object?>?`
-      + 5 additive Response-Felder. Schema-Invariante §5 (Richtlinie) bleibt.
+      `ToolCallRecord` (Arguments ist `IReadOnlyDictionary<string, object?>?`
+      + 5 additive Response-Felder mit JsonIgnore WhenWritingNull/Default)
+      + `FeedbackRecord` (unverändert). Schema-Invariante §5 (Richtlinie)
+      bleibt — bei `EnableResponseLogging = false` ist der JSON-Output
+      byte-identisch zu v1.0.0. (zuletzt: step-002)
 - **`src/RalfHuesing.Mcp.Observability/Internal/ArgumentSanitizer.cs`** — `internal static class`,
-      rekursive Sanitizer mit hartkodierter `SensitiveKeys`-Liste und
-      `Sanitize(IReadOnlyDictionary<string, JsonElement>?)`. EPIC-02: Signatur
-      wird zu `Sanitize(object?, IEnumerable<string>?)` generalisiert, neue
-      `Sanitize(string?, ...)`-Overload für Response-Strings,
-      `JsonNode.Parse`-Round-Trip wird durch direkte `JsonElement`-Traversierung
-      ersetzt (Mitdenken-Fund-Optimierung).
+      `Sanitize(object?, IEnumerable<string>?)` akzeptiert
+      `IReadOnlyDictionary<string, JsonElement>`, `Dict<string, object?>`,
+      `JsonObject`, `IDictionary<string, object?>`; `Sanitize(string?, …)`-
+      Overload für Response-Strings (zwei Regex-Patterns pro Key mit
+      Word-Boundary). `JsonNode.Parse`-Round-Trip eliminiert durch direkte
+      `JsonElement`-Traversierung. `JsonValueKind.Null` → echtes `null`.
+      (zuletzt: step-002)
 - **`src/RalfHuesing.Mcp.Observability/Internal/ToolCallLoggingHandler.cs`** — `internal static class`,
       registriert `WithRequestFilters(AddCallToolFilter)` und baut den
-      `ToolCallRecord`. EPIC-02: Cast auf `request.Params?.Arguments` entfällt
-      (durch generischen Sanitizer), Response-Extraktion aus
-      `result.Content` mit `TextContent`-Filter + `\n`-Join, Sanitizer auf
-      Response anwenden, Truncation bei `MaxResponseLength > 0`.
+      `ToolCallRecord`; `ExtractResponse` (internal static) extrahiert
+      TextContent-Blocks (ImageContentBlock/AudioContentBlock/EmbeddedResourceBlock
+      werden gezählt), Sanitizer läuft auf Response, Truncation bei
+      `MaxResponseLength > 0`. `ResponseExtraction` ist top-level
+      `internal readonly record struct` (AiNetLinter `BanPublicNestedTypes`).
+      (zuletzt: step-002)
 - **`src/RalfHuesing.Mcp.Observability/Internal/JsonlLogWriter.cs`** — `internal sealed class : IDisposable`,
       FileStream im Append-Mode mit `FileShare.ReadWrite`, thread-safe via
       `Lock`. Pfad kommt jetzt aus `ObservabilityContext.LogFilePath` (Single
@@ -130,10 +134,24 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 ### Tests
 
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/ArgumentSanitizerTests.cs`** — bestehende
-      Cases für Null/Empty, Case-Insensitive, nested objects/arrays. EPIC-02
-      ergänzt Cases für `Dictionary<string, object?>` und `JsonObject`-Inputs.
+      Cases für Null/Empty, Case-Insensitive, nested objects/arrays (an
+      neue `IReadOnlyDictionary<string, object?>?`-Rückgabe angepasst) +
+      Cases für `Dictionary<string, object?>`-Round-Trip, `JsonObject`-Input
+      und `Sanitize(string?, …)`-Overload. (zuletzt: step-002)
+- **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/ToolCallRecordSchemaStabilityTests.cs`** (neu)
+      — byte-Identität gegen hartkodiertes v1.0.0-Baseline-JSON bei
+      `EnableResponseLogging = false` + Round-Trip-Check der Response-Felder
+      bei Non-Default-Werten. (zuletzt: step-002)
+- **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/ResponseLoggingTests.cs`** (neu)
+      — 5 Cases (EnableResponseLogging true/false, MaxResponseLength 0/100,
+      IsErrorResult, nonTextContentBlocks) gegen `ExtractResponse` direkt
+      (via `InternalsVisibleTo`). (zuletzt: step-002)
+- **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/RequestFullLoggingTests.cs`** (neu)
+      — 3 Cases (Top-Level-Keys inkl. null, komplexe Typen DateTime/Guid/Array,
+      AdditionalSensitiveKeys) gegen `ArgumentSanitizer` direkt. (zuletzt: step-002)
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/JsonlLogWriterTests.cs`** — bestehende
-      Cases für Datei-Pfad, Append mehrerer Records, Concurrent-Writes.
+      Cases für Datei-Pfad, Append mehrerer Records (mechanisch um 5
+      additive positional args erweitert), Concurrent-Writes.
       EPIC-04 ergänzt `JsonlLogWriterFlushTests` (neue Datei) für
       `FlushAsync` + `DisposeAsync`.
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Integration/IntegrationTestBase.cs`** — `abstract`
