@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace RalfHuesing.Mcp.Observability.Internal;
@@ -14,22 +15,12 @@ internal sealed class JsonlLogWriter : IDisposable
 
     public JsonlLogWriter(ObservabilityContext context)
     {
-        var root = string.IsNullOrWhiteSpace(context.Options.LogDirectory)
-            ? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                ObservabilityConstants.DefaultCompanyName,
-                ObservabilityConstants.DefaultProductName)
-            : context.Options.LogDirectory;
-
-        var dateFolder = DateTime.UtcNow.ToString(ObservabilityConstants.DateFormat, System.Globalization.CultureInfo.InvariantCulture);
-        var dir = Path.Combine(root, context.ServerName, dateFolder);
+        var dir = Path.GetDirectoryName(context.LogFilePath)!;
         Directory.CreateDirectory(dir);
 
-        var fileName = $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl";
-        FilePath = Path.Combine(dir, fileName);
-
+        FilePath = context.LogFilePath;
         var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-        _writer = new StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
+        _writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
     }
 
     internal string FilePath { get; }

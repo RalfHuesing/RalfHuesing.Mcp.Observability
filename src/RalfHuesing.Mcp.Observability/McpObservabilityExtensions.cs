@@ -34,6 +34,8 @@ public static class McpObservabilityExtensions
 
         builder.Services.AddSingleton(resolvedOptions);
         builder.Services.AddSingleton<ObservabilityContext>();
+        builder.Services.AddSingleton<IMcpObservabilityService>(
+            sp => sp.GetRequiredService<ObservabilityContext>());
 
         if (resolvedOptions.EnableToolCallLogging || resolvedOptions.EnableFeedbackTool)
         {

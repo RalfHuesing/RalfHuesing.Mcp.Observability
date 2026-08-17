@@ -8,6 +8,14 @@ namespace RalfHuesing.Mcp.Observability;
 public sealed class McpObservabilityOptions
 {
     /// <summary>
+    /// Default message returned by the <c>report_observability_feedback</c> tool
+    /// after a successful write. Exposed as a discoverable constant for consumers
+    /// who want to restore the default after overriding
+    /// <see cref="FeedbackConfirmationMessage"/>.
+    /// </summary>
+    public const string DefaultFeedbackConfirmationMessage = "Feedback recorded. Thank you.";
+
+    /// <summary>
     /// Master switch. When <c>false</c>, no logging occurs and the feedback tool is not registered.
     /// Default: <c>true</c>.
     /// </summary>
@@ -32,4 +40,37 @@ public sealed class McpObservabilityOptions
     /// <c>%LOCALAPPDATA%\RalfHuesing\McpObservability\</c>.
     /// </summary>
     public string? LogDirectory { get; set; }
+
+    /// <summary>
+    /// Overrides the server name written to every JSONL record
+    /// (<c>serverName</c> field). When <c>null</c> or whitespace, the
+    /// value falls back to <c>McpServerOptions.ServerInfo.Name</c>, then
+    /// to the entry assembly name, then to <c>"UnknownServer"</c>.
+    /// </summary>
+    public string? ServerName { get; set; }
+
+    /// <summary>
+    /// Overrides the server version written to every JSONL record
+    /// (<c>serverVersion</c> field). When <c>null</c> or whitespace, the
+    /// value falls back to <c>McpServerOptions.ServerInfo.Version</c>, then
+    /// to the entry assembly version, then to <see cref="string.Empty"/>.
+    /// </summary>
+    public string? ServerVersion { get; set; }
+
+    /// <summary>
+    /// Message returned by the <c>report_observability_feedback</c> tool after a
+    /// successful write. Defaults to
+    /// <see cref="DefaultFeedbackConfirmationMessage"/>. The tool itself consumes
+    /// this value (wiring in a later step); setting it here is inert until then.
+    /// </summary>
+    public string FeedbackConfirmationMessage { get; set; } = DefaultFeedbackConfirmationMessage;
+
+    /// <summary>
+    /// Additional argument keys that <see cref="Internal.ArgumentSanitizer"/>
+    /// treats as sensitive (in addition to the built-in list). Comparison is
+    /// case-insensitive (<see cref="StringComparer.OrdinalIgnoreCase"/>).
+    /// Inert in this release — the sanitizer will start consuming the property
+    /// once the generalized signature lands in EPIC-02.
+    /// </summary>
+    public HashSet<string> AdditionalSensitiveKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
