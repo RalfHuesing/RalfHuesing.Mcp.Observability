@@ -2,7 +2,7 @@
 task: refine
 type: codemap
 maintained_by: planer, coder, kritiker
-last_updated: 2026-08-18T00:20:00+02:00
+last_updated: 2026-08-18T00:45:00+02:00
 ---
 
 # CodeMap: refine — Robustheit, Kompatibilität, Diagnostik (v1.0.1)
@@ -113,11 +113,11 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
       `MaxResponseLength > 0`. `ResponseExtraction` ist top-level
       `internal readonly record struct` (AiNetLinter `BanPublicNestedTypes`).
       (zuletzt: step-002)
-- **`src/RalfHuesing.Mcp.Observability/Internal/JsonlLogWriter.cs`** — `internal sealed class : IDisposable`,
+- **`src/RalfHuesing.Mcp.Observability/Internal/JsonlLogWriter.cs`** — `internal sealed class : IDisposable, IAsyncDisposable`,
       FileStream im Append-Mode mit `FileShare.ReadWrite`, thread-safe via
-      `Lock`. Pfad kommt jetzt aus `ObservabilityContext.LogFilePath` (Single
-      Source of Truth, verlagert in step-001). EPIC-04: zusätzlich
-      `IAsyncDisposable` + `FlushAsync(CancellationToken)`. (zuletzt: step-001)
+      `Lock`. Pfad kommt aus `ObservabilityContext.LogFilePath` (Single
+      Source of Truth). `FlushAsync(CancellationToken)` und `DisposeAsync()`
+      für sauberen asynchronen Lifecycle. (zuletzt: step-004)
 - **`src/RalfHuesing.Mcp.Observability/Internal/ObservabilityContext.cs`** — `internal sealed class : IMcpObservabilityService`,
       process-scoped Singleton mit `ServerName`/`ServerVersion`/`ProcessId`/
       `InstanceId`/`Options` + `internal string LogFilePath` (eager im
@@ -167,8 +167,10 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/JsonlLogWriterTests.cs`** — bestehende
       Cases für Datei-Pfad, Append mehrerer Records (mechanisch um 5
       additive positional args erweitert), Concurrent-Writes.
-      EPIC-04 ergänzt `JsonlLogWriterFlushTests` (neue Datei) für
-      `FlushAsync` + `DisposeAsync`.
+- **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/JsonlLogWriterFlushTests.cs`** — neu
+      (EPIC-04, step-004), 2 Cases: `FlushAsync` schreibt Payload lesbar in
+      die Datei, `DisposeAsync` flasht und schließt den FileStream sauber.
+      (zuletzt: step-004)
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Integration/IntegrationTestBase.cs`** — `abstract`
       Basisklasse mit isoliertem `TempDirectory` (per `Guid`), `CreateDuplexPipes()`
       und `ReadAllLinesSharedAsync` (mit `FileShare.ReadWrite`). Alle neuen
