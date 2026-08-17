@@ -63,7 +63,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_nuget == true)
         uses: NuGet/login@v1
         with:
-          owner: RalfHuesing
+          user: RalfHuesing
 
       - name: Publish to NuGet.org
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_nuget == true)
