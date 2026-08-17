@@ -1,10 +1,14 @@
-Hier ist das **vollständige, agenten-fertige Konzept**. Es enthält keine offenen Fragen mehr.
-
+---
+status: ready
+project_kind: greenfield
+rules_dir: .agents/rules
+estimated_scope: medium
+last_updated: "2026-08-17"
+open_questions: []
 ---
 
 # Konzept: RalfHuesing.Mcp.Observability
 
-**Version des Konzepts:** 1.0  
 **Ziel:** Ein NuGet-Paket, das MCP-Server (basierend auf dem offiziellen `ModelContextProtocol`-SDK) einheitliches, überlebensfähiges Logging und einen strukturierten Feedback-Kanal für LLM-Agenten gibt.
 
 ---
@@ -356,7 +360,4 @@ Das Package ist fertig, wenn:
 5. Die Unit- und Integrationstests grün sind.
 6. Das README eine klare, kopierbare Anleitung enthält.
 
----
-
-Dieses Konzept ist vollständig und enthält keine offenen Entscheidungen mehr.  
-Ein Agent kann damit direkt die Implementierung starten.
+

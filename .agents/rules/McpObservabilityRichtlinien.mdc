@@ -1,0 +1,98 @@
+---
+description: AI coding guidelines, constraints, and architecture rules for the RalfHuesing.Mcp.Observability project.
+globs: *
+alwaysApply: true
+---
+# RalfHuesing.Mcp.Observability — Architektur- & Workflow-Richtlinien
+
+Strikte Leitplanken für Code-Erstellung, Tests und Publishing des NuGet-Pakets `RalfHuesing.Mcp.Observability` (.NET 10 / C# 14).
+
+## 1. Design-Philosophie
+
+- **Minimaler Integrationsaufwand:** Das Paket muss mit **einer** einzigen Extension-Methode (`.WithObservability(...)`) in einen bestehenden MCP-Server integrierbar sein. Keine Boilerplate-Pflicht für den Konsumenten.
+- **Pragmatisch & schlank (v1):** Kein OpenTelemetry, keine Datenbank, keine Log-Rotation. Nur JSONL-Dateien auf Disk — einfach, debuggbar, übertragbar.
+- **Multi-Prozess-sicher by Design:** Eine Instanz-Datei pro Prozess (ProcessId + InstanceId im Dateinamen). Kein Locking zwischen Prozessen nötig.
+- **Survival-Garantie:** Logs liegen in `%LOCALAPPDATA%\RalfHuesing\McpObservability\` — außerhalb des Server-Release-Verzeichnisses, überleben Delete + Neu-Extract.
+- **Sichtbarkeit für den Agenten:** Das Feedback-Tool (`report_observability_feedback`) ist das einzige öffentlich sichtbare Tool dieses Pakets — alle anderen Mechanismen sind transparent.
+- **Einfachheit vor Abstraktion:** Abstraktionen nur dort einführen, wo sie echten Mehrwert durch Wiederverwendung oder Testbarkeit liefern.
+
+## 2. Architektur-Verbote (Constraints)
+
+- **Kein OpenTelemetry in v1:** Weder Metrics noch Traces. Scope ist ausschließlich JSONL-Datei-Logging.
+- **Keine Datenbank:** Weder SQLite noch andere. Nur `FileStream` im Append-Mode.
+- **Kein Log-Server:** Keine Query-API, kein HTTP-Endpoint. Nur Schreiben, kein Lesen.
+- **Kein .NET < 10:** Target Framework ist ausschließlich `net10.0`.
+- **Kein Plugin-System:** Das Paket bleibt eine schlanke Library ohne Erweiterungspunkte in v1.
+- **Keine Abhängigkeiten über das Minimum:** Erlaubte Abhängigkeiten: `ModelContextProtocol` (2.x stabil), `Microsoft.Extensions.Options`, `Microsoft.Extensions.Configuration.Binder`, `Microsoft.Extensions.Logging.Abstractions`. Jede weitere Abhängigkeit bedarf expliziter Begründung.
+
+## 3. Windows-Umgebung & Tool-Regeln
+
+Diese Entwicklungsumgebung läuft **ausschließlich unter Windows**.
+
+### Shell
+- **Shell:** PowerShell 7 (`pwsh`) — kein Bash, kein `sh`, kein WSL.
+- Pfad-Trenner: Backslash `\` (oder forward slash `/` in .NET/git-Kontexten).
+- Keine Linux-Befehle wie `ls`, `cat`, `touch`, `find`, `grep` (als eigenständige Befehle).
+- Git **immer** mit `--no-pager` aufrufen: `git --no-pager log --oneline -10`.
+
+### Build & Test
+```powershell
+dotnet build          # Kompilieren
+dotnet test           # Tests ausführen (alle Projekte)
+dotnet pack           # NuGet-Paket erzeugen (src/ only)
+```
+
+## 4. Datenformat-Invarianten (verbindlich)
+
+Das JSONL-Schema ist die zentrale Schnittstelle des Pakets — Änderungen daran sind Breaking Changes:
+
+- **`schemaVersion`** muss immer `1` sein (v1). Bei künftigen Breaking Changes erhöhen, nie weglassen.
+- **`timestamp`** immer UTC, ISO-8601 (`2026-08-17T17:22:01.123Z`). Kein lokales Datum.
+- **`recordType`** ist enumeriert: `"tool_call"` | `"feedback"`. Kein anderer Wert erlaubt.
+- **`instanceId`** = neuer `Guid` ohne Bindestriche bei jedem Prozessstart (kurz, hex). Nie wiederverwenden.
+- **`arguments`** werden vor dem Schreiben durch `ArgumentSanitizer` geleitet. Bekannte sensible Keys (case-insensitive): `password`, `pwd`, `secret`, `token`, `apiKey`, `apikey`, `accessToken`, `authorization`, `connectionString`, `privateKey` → Wert wird durch `"***REDACTED***"` ersetzt. Rekursiv auf Dictionaries/JSON-Elementen.
+
+Neue Felder dürfen addiert werden (additive, non-breaking). Felder umbenennen oder entfernen ist ein Breaking Change (Major-Version).
+
+## 5. Öffentliche API-Stabilität
+
+- **`McpObservabilityOptions`** und **`McpObservabilityExtensions.WithObservability`** sind die einzigen öffentlichen API-Surface-Punkte. Alle internen Klassen (`ObservabilityContext`, `JsonlLogWriter`, `ArgumentSanitizer`, `ToolCallLoggingHandler`, `FeedbackTools`) müssen `internal` bleiben.
+- **Namespace:** Ausschließlich `RalfHuesing.Mcp.Observability` für öffentliche Typen. Interne Typen liegen in `RalfHuesing.Mcp.Observability.Internal`.
+- Property-Umbenennung in `McpObservabilityOptions` ist ein Breaking Change — nie ohne Major-Version.
+
+## 6. Tests (verbindlich)
+
+- **xUnit v3** für alle Tests.
+- **Mindest-Coverage** (muss vor dem ersten Release grün sein):
+  - `ArgumentSanitizer`: alle Verschachtelungsszenarien, case-insensitivity.
+  - `JsonlLogWriter`: Datei angelegt, Zeilen valides JSON, mehrere Writes hintereinander, Datei im korrekten Pfad.
+  - Integration: Minimaler MCP-Server mit `WithObservability` → Tool aufrufen → `tool_call`-Record korrekt.
+  - Integration: Feedback-Tool aufrufen → `feedback`-Record korrekt.
+  - `Enabled = false` → kein Logging, kein Feedback-Tool registriert.
+  - `EnableToolCallLogging = false` → nur Feedback-Records.
+- **Keine parallelen File-I/O-Tests ohne Isolation:** Jeder Test, der in das Dateisystem schreibt, nutzt ein temporäres, testspezifisches Verzeichnis (`Path.GetTempPath() + Guid`). Aufräumen im `Dispose`.
+- **Symptom-Fixing verboten:** Fehlschlagende Tests nicht auskommentieren oder Assertions abschwächen.
+
+## 7. Dokumentation & Qualität
+
+- **Zero-Warning-Direktive:** `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` in allen Projekten. Kein Commit mit rotem Build.
+- **XML-Docs für die öffentliche API:** `McpObservabilityOptions` (alle Properties), `McpObservabilityExtensions.WithObservability`. Interne Klassen: nur wo das „Warum" nicht offensichtlich ist.
+- **Kommentar-Philosophie:** Self-Documenting Code bevorzugen. Kommentare nur für nicht-offensichtliches „Warum" (Workarounds, Constraints, Edge Cases). Kein auskommentierter Code, keine Inline-Changelogs, keine Task-ID-Referenzen im Code.
+- **Keine absoluten Pfade in Markdown-Links:** Repo-relative Pfade in Docs/README (z. B. `src/RalfHuesing.Mcp.Observability/McpObservabilityOptions.cs`).
+- **Dokumentations-Synchronisation (Pflicht):** Bei Änderungen an der öffentlichen API oder am JSONL-Schema immer auch `README.md` aktualisieren (ohne Aufforderung).
+- **Dokumentations-Objektivität:** Nur Implementiertes dokumentieren. Keine Superlative, keine Marketing-Adjektive. Sachlich, nachprüfbar.
+
+## 8. Versionierung & Publishing
+
+- **Semantic Versioning (SemVer):** Additive Schema-/API-Änderungen → Minor. Breaking Changes → Major. Bug-Fixes → Patch.
+- **Erste stabile Version:** `1.0.0`.
+- **Publishing:** `nuget.org`, öffentlich. Paket-README muss Integrationsbeispiel und Schema-Tabelle enthalten.
+- **Kein Pre-Release auf nuget.org** ohne explizite Entscheidung.
+
+## 9. Commit-Pflicht
+
+Bei jeder Änderung an versionierten Dateien schließt die Agenten-Antwort mit einem konkreten `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ, ohne Shell-Befehle):
+
+```
+feat(logging): ArgumentSanitizer rekursiv für verschachtelte JSON-Elemente
+```
