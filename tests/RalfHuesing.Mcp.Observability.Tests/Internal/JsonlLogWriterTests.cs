@@ -74,7 +74,12 @@ public sealed class JsonlLogWriterTests : IDisposable
             DurationMs: 42,
             Success: true,
             IsErrorResult: false,
-            ErrorMessage: null);
+            ErrorMessage: null,
+            Response: null,
+            ResponseLength: 0,
+            ResponseLines: 0,
+            ResponseTruncated: false,
+            NonTextContentBlocks: 0);
 
         var feedbackRecord = new FeedbackRecord(
             SchemaVersion: 1,

@@ -66,11 +66,31 @@ public sealed class McpObservabilityOptions
     public string FeedbackConfirmationMessage { get; set; } = DefaultFeedbackConfirmationMessage;
 
     /// <summary>
+    /// Master switch for the response content field in the <c>tool_call</c>
+    /// record. When <c>false</c>, <c>Response</c> and <c>ResponseTruncated</c>
+    /// are omitted from the JSONL output, and
+    /// <c>ResponseLength</c>/<c>ResponseLines</c>/<c>NonTextContentBlocks</c>
+    /// are omitted when they hold their default value. Consumer-specific
+    /// activation via <c>appsettings.json</c> (no global default value here).
+    /// Default: <c>true</c>.
+    /// </summary>
+    public bool EnableResponseLogging { get; set; } = true;
+
+    /// <summary>
+    /// Hard character limit for the <c>response</c> string. When <c>&gt; 0</c>
+    /// and the response length exceeds the limit, the text is truncated and a
+    /// <c>... [truncated at N chars]</c> marker is appended. When <c>0</c>
+    /// (default) no truncation is applied. Effective only when
+    /// <see cref="EnableResponseLogging"/> is <c>true</c>. Set in the consumer
+    /// server's <c>appsettings.json</c> (no global default).
+    /// </summary>
+    public int MaxResponseLength { get; set; }
+
+    /// <summary>
     /// Additional argument keys that <see cref="Internal.ArgumentSanitizer"/>
     /// treats as sensitive (in addition to the built-in list). Comparison is
     /// case-insensitive (<see cref="StringComparer.OrdinalIgnoreCase"/>).
-    /// Inert in this release — the sanitizer will start consuming the property
-    /// once the generalized signature lands in EPIC-02.
+    /// The sanitizer merges this set with its built-in defaults since EPIC-02.
     /// </summary>
     public HashSet<string> AdditionalSensitiveKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

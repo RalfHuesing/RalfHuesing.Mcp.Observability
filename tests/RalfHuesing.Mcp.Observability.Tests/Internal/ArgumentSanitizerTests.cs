@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using RalfHuesing.Mcp.Observability.Internal;
 
 namespace RalfHuesing.Mcp.Observability.Tests.Internal;
@@ -40,8 +41,8 @@ public sealed class ArgumentSanitizerTests
         var sanitized = ArgumentSanitizer.Sanitize(input);
 
         Assert.NotNull(sanitized);
-        Assert.True(sanitized.TryGetValue(keyName, out var element));
-        Assert.Equal("***REDACTED***", element.GetString());
+        Assert.True(sanitized.TryGetValue(keyName, out var value));
+        Assert.Equal("***REDACTED***", value);
     }
 
     [Fact]
@@ -57,9 +58,12 @@ public sealed class ArgumentSanitizerTests
         var sanitized = ArgumentSanitizer.Sanitize(input);
 
         Assert.NotNull(sanitized);
-        Assert.Equal("select * from users", sanitized["query"].GetString());
-        Assert.Equal(50, sanitized["limit"].GetInt32());
-        Assert.True(sanitized["isActive"].GetBoolean());
+        var queryEl = (JsonElement)sanitized["query"]!;
+        var limitEl = (JsonElement)sanitized["limit"]!;
+        var activeEl = (JsonElement)sanitized["isActive"]!;
+        Assert.Equal("select * from users", queryEl.GetString());
+        Assert.Equal(50, limitEl.GetInt32());
+        Assert.True(activeEl.GetBoolean());
     }
 
     [Fact]
@@ -91,16 +95,99 @@ public sealed class ArgumentSanitizerTests
 
         Assert.NotNull(sanitized);
 
-        var sanitizedUser = sanitized["user"];
-        Assert.Equal("Alice", sanitizedUser.GetProperty("name").GetString());
-        Assert.Equal("***REDACTED***", sanitizedUser.GetProperty("PASSWORD").GetString());
-        Assert.Equal("***REDACTED***", sanitizedUser.GetProperty("nested").GetProperty("apiKey").GetString());
+        var user = Assert.IsType<Dictionary<string, object?>>(sanitized["user"]);
+        var nameEl = (JsonElement)user["name"]!;
+        Assert.Equal("Alice", nameEl.GetString());
+        Assert.Equal("***REDACTED***", user["PASSWORD"]);
+        var nested = Assert.IsType<Dictionary<string, object?>>(user["nested"]);
+        Assert.Equal("***REDACTED***", nested["apiKey"]);
 
-        var sanitizedList = sanitized["credentialsList"];
-        Assert.Equal(2, sanitizedList.GetArrayLength());
-        Assert.Equal("***REDACTED***", sanitizedList[0].GetProperty("token").GetString());
-        Assert.Equal("read", sanitizedList[0].GetProperty("scope").GetString());
-        Assert.Equal("***REDACTED***", sanitizedList[1].GetProperty("connectionString").GetString());
-        Assert.Equal(5432, sanitizedList[1].GetProperty("port").GetInt32());
+        var list = Assert.IsType<List<object?>>(sanitized["credentialsList"]);
+        Assert.Equal(2, list.Count);
+        var first = Assert.IsType<Dictionary<string, object?>>(list[0]);
+        Assert.Equal("***REDACTED***", first["token"]);
+        var scopeEl = (JsonElement)first["scope"]!;
+        Assert.Equal("read", scopeEl.GetString());
+        var second = Assert.IsType<Dictionary<string, object?>>(list[1]);
+        Assert.Equal("***REDACTED***", second["connectionString"]);
+        var port = (JsonElement)second["port"]!;
+        Assert.Equal(5432, port.GetInt32());
+    }
+
+    [Fact]
+    public void Sanitize_AcceptsDictionaryOfObject_AndProducesSameOutputAsJsonElementInput()
+    {
+        var asObjectDict = new Dictionary<string, object?>
+        {
+            ["text"] = "hello",
+            ["limit"] = 50,
+            ["nested"] = new Dictionary<string, object?>
+            {
+                ["k"] = "v"
+            }
+        };
+
+        var asJsonElementDict = new Dictionary<string, JsonElement>
+        {
+            ["text"] = JsonSerializer.SerializeToElement("hello"),
+            ["limit"] = JsonSerializer.SerializeToElement(50),
+            ["nested"] = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+            {
+                ["k"] = "v"
+            })
+        };
+
+        var sanitizedObject = ArgumentSanitizer.Sanitize(asObjectDict);
+        var sanitizedElement = ArgumentSanitizer.Sanitize(asJsonElementDict);
+
+        Assert.NotNull(sanitizedObject);
+        Assert.NotNull(sanitizedElement);
+
+        var objectJson = JsonSerializer.Serialize(sanitizedObject);
+        var elementJson = JsonSerializer.Serialize(sanitizedElement);
+
+        Assert.Equal(elementJson, objectJson);
+    }
+
+    [Fact]
+    public void Sanitize_AcceptsJsonObject_AndRedactsNestedSensitiveKeys()
+    {
+        var jsonObject = new JsonObject
+        {
+            ["user"] = new JsonObject
+            {
+                ["name"] = "Alice",
+                ["password"] = "hidden"
+            }
+        };
+
+        var sanitized = ArgumentSanitizer.Sanitize(jsonObject);
+
+        Assert.NotNull(sanitized);
+        Assert.True(sanitized.TryGetValue("user", out var userValue));
+        var userObj = Assert.IsType<Dictionary<string, object?>>(userValue);
+        Assert.Equal("Alice", userObj["name"]);
+        Assert.Equal("***REDACTED***", userObj["password"]);
+    }
+
+    [Fact]
+    public void Sanitize_String_Overload_RedactsKeyValuePairs()
+    {
+        var keyValueText = "token=abc123 foo=bar";
+        var sanitized = ArgumentSanitizer.Sanitize(keyValueText);
+
+        Assert.NotNull(sanitized);
+        Assert.DoesNotContain("abc123", sanitized);
+        Assert.Contains("token=***REDACTED***", sanitized);
+        Assert.Contains("foo=bar", sanitized);
+
+        var jsonLikeText = "\"sessionId\":\"xyz\" password=pw";
+        var additional = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "sessionId" };
+        var sanitizedJson = ArgumentSanitizer.Sanitize(jsonLikeText, additional);
+
+        Assert.NotNull(sanitizedJson);
+        Assert.DoesNotContain("xyz", sanitizedJson);
+        Assert.Contains("sessionId\":\"***REDACTED***", sanitizedJson);
+        Assert.Contains("password=***REDACTED***", sanitizedJson);
     }
 }
