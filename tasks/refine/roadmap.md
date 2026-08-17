@@ -92,7 +92,7 @@ Versionsnummer setzt `scripts/create-release.ps1`.
       `RequestFullLoggingTests`. Konzept §„ArgumentSanitizer generalisieren"
       + §„Response-Logging" + §„JSONL-Schema-Stabilität".
 
-- [ ] **EPIC-03: Public Feedback-Tool-API & Tool-Schatten-Fix** — Neue public
+- [x] **EPIC-03: Public Feedback-Tool-API & Tool-Schatten-Fix** _(abgeschlossen via step-003 → `ef83d6e` — approved)_ — Neue public
       static class `McpObservabilityTools` mit `CreateFeedbackTool(IServiceProvider)`
       (semantisch identisch zu `FeedbackTools.ReportFeedback`, aber via
       `McpServerTool.Create` statt Reflection) und Extension
