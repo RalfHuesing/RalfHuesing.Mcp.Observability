@@ -64,9 +64,9 @@ internal static class ToolCallLoggingHandler
         var isErrorResult = result?.IsError ?? false;
 
         return new ToolCallRecord(
-            SchemaVersion: 1,
-            Timestamp: DateTime.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
-            RecordType: "tool_call",
+            SchemaVersion: ObservabilityConstants.SchemaVersion,
+            Timestamp: DateTime.UtcNow.ToString(ObservabilityConstants.TimestampFormat, System.Globalization.CultureInfo.InvariantCulture),
+            RecordType: ObservabilityConstants.ToolCallRecordType,
             ServerName: ctx.ServerName,
             ServerVersion: ctx.ServerVersion,
             ProcessId: ctx.ProcessId,

@@ -10,8 +10,6 @@ namespace RalfHuesing.Mcp.Observability.Internal;
 /// </summary>
 internal static class ArgumentSanitizer
 {
-    private const string RedactedMarker = "***REDACTED***";
-
     private static readonly HashSet<string> SensitiveKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "password",
@@ -42,7 +40,7 @@ internal static class ArgumentSanitizer
         foreach (var (key, value) in arguments)
         {
             result[key] = SensitiveKeys.Contains(key)
-                ? JsonSerializer.SerializeToElement(RedactedMarker)
+                ? JsonSerializer.SerializeToElement(ObservabilityConstants.RedactedMarker)
                 : SanitizeElement(value);
         }
 
@@ -83,7 +81,7 @@ internal static class ArgumentSanitizer
         {
             if (SensitiveKeys.Contains(key))
             {
-                obj[key] = JsonValue.Create(RedactedMarker);
+                obj[key] = JsonValue.Create(ObservabilityConstants.RedactedMarker);
             }
             else if (obj[key] is { } child)
             {

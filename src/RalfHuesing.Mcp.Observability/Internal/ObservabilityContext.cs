@@ -31,7 +31,7 @@ internal sealed class ObservabilityContext
         else
         {
             var entryAssembly = Assembly.GetEntryAssembly();
-            ServerName = entryAssembly?.GetName().Name ?? "UnknownServer";
+            ServerName = entryAssembly?.GetName().Name ?? ObservabilityConstants.UnknownServerName;
             ServerVersion = entryAssembly?.GetName().Version?.ToString() ?? string.Empty;
         }
     }

@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 task: initial
 derived_from: Konzept.md
 created_at: "2026-08-17T20:26:00+02:00"

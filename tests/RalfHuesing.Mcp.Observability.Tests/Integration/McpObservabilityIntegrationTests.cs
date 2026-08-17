@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.IO.Pipelines;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,33 +18,8 @@ internal sealed class EchoTool
     internal static string Echo([Description("Text to echo")] string text) => $"echo:{text}";
 }
 
-public sealed class McpObservabilityIntegrationTests : IDisposable
+public sealed class McpObservabilityIntegrationTests : IntegrationTestBase
 {
-    private readonly string _tempDirectory;
-
-    public McpObservabilityIntegrationTests()
-    {
-        _tempDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "McpObsIntegration_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempDirectory);
-    }
-
-    public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_tempDirectory))
-            {
-                Directory.Delete(_tempDirectory, recursive: true);
-            }
-        }
-        catch
-        {
-            // Ignored on cleanup
-        }
-    }
-
     [Fact]
     public async Task ToolCall_WritesToolCallRecordToJsonl()
     {
@@ -53,16 +27,10 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
 
         var options = new McpObservabilityOptions
         {
-            LogDirectory = _tempDirectory
+            LogDirectory = TempDirectory
         };
 
-        var clientPipe = new Pipe();
-        var serverPipe = new Pipe();
-
-        var clientRead = serverPipe.Reader.AsStream();
-        var clientWrite = clientPipe.Writer.AsStream();
-        var serverRead = clientPipe.Reader.AsStream();
-        var serverWrite = serverPipe.Writer.AsStream();
+        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
 
         var builder = Host.CreateEmptyApplicationBuilder(null);
         builder.Services.AddMcpServer(serverOptions =>
@@ -115,17 +83,5 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         await client.DisposeAsync();
         await host.StopAsync(ct);
         host.Dispose();
-    }
-
-    private static async Task<string[]> ReadAllLinesSharedAsync(string filePath, CancellationToken ct)
-    {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
-        var lines = new List<string>();
-        while (await reader.ReadLineAsync(ct) is { } line)
-        {
-            lines.Add(line);
-        }
-        return lines.ToArray();
     }
 }

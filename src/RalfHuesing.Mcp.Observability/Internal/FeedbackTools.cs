@@ -23,7 +23,7 @@ internal sealed class FeedbackTools
         [Description("Short, clear title (max 120 characters).")] string title,
         [Description("Detailed description of what happened or what is missing.")] string description,
         [Description("Name of the affected MCP tool, if known.")] string? relatedTool = null,
-        [Description("Severity level: 'low', 'medium', or 'high'. Default: 'medium'.")] string severity = "medium",
+        [Description("Severity level: 'low', 'medium', or 'high'. Default: 'medium'.")] string severity = ObservabilityConstants.DefaultSeverity,
         [Description("What the agent expected to happen.")] string? expectedBehavior = null,
         [Description("What actually happened.")] string? actualBehavior = null,
         [Description("Any additional free-form context.")] string? additionalContext = null)
@@ -35,9 +35,9 @@ internal sealed class FeedbackTools
         if (logWriter is not null && ctx is not null)
         {
             var record = new FeedbackRecord(
-                SchemaVersion: 1,
-                Timestamp: DateTime.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
-                RecordType: "feedback",
+                SchemaVersion: ObservabilityConstants.SchemaVersion,
+                Timestamp: DateTime.UtcNow.ToString(ObservabilityConstants.TimestampFormat, System.Globalization.CultureInfo.InvariantCulture),
+                RecordType: ObservabilityConstants.FeedbackRecordType,
                 ServerName: ctx.ServerName,
                 ServerVersion: ctx.ServerVersion,
                 ProcessId: ctx.ProcessId,
@@ -54,6 +54,6 @@ internal sealed class FeedbackTools
             logWriter.WriteRecord(record);
         }
 
-        return "Feedback recorded. Thank you.";
+        return ObservabilityConstants.DefaultFeedbackResponse;
     }
 }

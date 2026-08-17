@@ -17,18 +17,18 @@ internal sealed class JsonlLogWriter : IDisposable
         var root = string.IsNullOrWhiteSpace(context.Options.LogDirectory)
             ? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "RalfHuesing",
-                "McpObservability")
+                ObservabilityConstants.DefaultCompanyName,
+                ObservabilityConstants.DefaultProductName)
             : context.Options.LogDirectory;
 
-        var dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var dateFolder = DateTime.UtcNow.ToString(ObservabilityConstants.DateFormat, System.Globalization.CultureInfo.InvariantCulture);
         var dir = Path.Combine(root, context.ServerName, dateFolder);
         Directory.CreateDirectory(dir);
 
         var fileName = $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl";
         FilePath = Path.Combine(dir, fileName);
 
-        var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+        var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
         _writer = new StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
     }
 
@@ -43,5 +43,11 @@ internal sealed class JsonlLogWriter : IDisposable
         }
     }
 
-    public void Dispose() => _writer.Dispose();
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            _writer.Dispose();
+        }
+    }
 }
