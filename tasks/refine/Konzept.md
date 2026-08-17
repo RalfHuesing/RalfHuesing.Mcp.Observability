@@ -4,7 +4,7 @@ type: konzept
 project_kind: brownfield
 estimated_scope: medium
 rules_dir: .agents/rules
-last_updated: 2026-08-17T22:29:30Z
+last_updated: 2026-08-17T22:33:30Z
 open_questions: []
 ---
 
@@ -83,6 +83,16 @@ werden ergänzend public. Die Lockerung wird in `McpObservabilityRichtlinien.mdc
   Default-Liste + `additionalKeys`.
 - `ToolCallLoggingHandler.CreateRecord` reicht `request.Params?.Arguments`
   ohne Cast direkt an `Sanitize` weiter.
+- **Vollständigkeit des Request-Logs (explizit):** Der Sanitizer
+  lässt **alle** Parameter in ihrer ursprünglichen Struktur durch —
+  Top-Level-Keys, verschachtelte Objekte, Listen, komplexe Typen
+  (`DateTime`, `Guid`, Enums), Null-Werte. Nur Werte, deren Schlüssel
+  in `SensitiveKeys` (oder `AdditionalSensitiveKeys`) steht, werden
+  durch `***REDACTED***` ersetzt. **Nichts** wird stillschweigend
+  verworfen, gefiltert oder komprimiert. Konsumenten können den
+  Record so analysieren, als hätten sie den rohen Request-Body gesehen
+  (minus den redaktierten Werten). Diese Eigenschaft ist zentral für
+  Post-Mortem-Analysen — ein "halber" Request wäre nutzlos.
 - Zusätzliche Methode `Sanitize(string? rawText, IEnumerable<string>?)`
   für Response-Strings: erkennt `key=value` / `"key":"value"`-Muster
   und redacted bekannte sensitive Keys (gleiche `SensitiveKeys`-Quelle
@@ -208,6 +218,18 @@ public):
      nur den Wert, nicht die Länge).
    - `nonTextContentBlocks` zählt `ImageContent`/`AudioContent`/
      `EmbeddedResource` korrekt; erscheint nicht im `response`-Feld.
+7. `RequestFullLoggingTests` (neu, Internal): verifiziert die
+   Vollständigkeit des Request-Logs:
+   - Alle Top-Level-Keys landen im Record (nicht nur eine Teilmenge).
+   - Verschachtelte Objekte werden rekursiv durchgereicht.
+   - Listen/Arrays bleiben als Arrays erhalten.
+   - Komplexe Typen (`DateTime`, `Guid`, Enums) werden als
+     JSON-serialisierte Werte (String) ausgegeben.
+   - `null`-Werte werden mit `null` geschrieben, nicht ausgelassen.
+   - Sensitive Keys (Default-Liste) werden mit `***REDACTED***`
+     ersetzt, **alle anderen** Keys erscheinen mit ihren Originalwerten.
+   - `AdditionalSensitiveKeys` fließt in die Redaction ein
+     (z. B. `["sessionId"]` → `sessionId` wird redacted).
 
 **Dokumentation**:
 - `README.md` — neue Sektion "Manual ToolCollection" mit Copy-Paste-Beispiel
@@ -326,6 +348,7 @@ sind in Muss-Haven hochgestuft.
 - `tests/RalfHuesing.Mcp.Observability.Tests/Internal/JsonlLogWriterFlushTests.cs` — **neu**.
 - `tests/RalfHuesing.Mcp.Observability.Tests/Internal/ToolCallRecordSchemaStabilityTests.cs` — **neu**.
 - `tests/RalfHuesing.Mcp.Observability.Tests/Internal/ResponseLoggingTests.cs` — **neu**.
+- `tests/RalfHuesing.Mcp.Observability.Tests/Internal/RequestFullLoggingTests.cs` — **neu**.
 - `samples/ManualToolCollectionServer/` — **neu**, parallel zu
   `samples/MinimalMcpServerWithObservability/`.
 - `README.md` — Options-Tabelle, Dual-Use-Sektion, File-Locking-Hinweis.
@@ -393,6 +416,29 @@ sind in Muss-Haven hochgestuft.
     (`LogBinaryContent`-Flag) bleibt explizit Non-Goal für v1.1.
   - **Entscheidung:** übernommen, im selben Step wie Response-Logging
     umgesetzt.
+
+- **`SensitiveKeys` ist eine Heuristik, kein Allheilmittel** (Mitdenken-Fund)
+  - **Gefunden:** Die hartkodierte `SensitiveKeys`-Liste deckt bekannte
+    Klassen von Secrets ab (`password`, `token`, `apiKey`,
+    `connectionString`, …), aber **nicht** generische PII wie
+    `email`, `phone`, `sessionId`, `userId`, `customerId` — Daten,
+    die in vielen Anwendungen ebenfalls schützenswert sind.
+  - **Bezug:** §5 Datenformat-Invarianten (Sanitizer-Pflicht), aber
+    keine kodifizierte Regel zur Heuristik-Vollständigkeit. Eine
+    "vollständige" Auto-Detection ist unmöglich — der Sanitizer
+    arbeitet schlüsselbasiert, nicht wertbasiert.
+  - **Vorschlag:** Konsumenten-spezifische Erweiterung via
+    `AdditionalSensitiveKeys`. Bewusste Entscheidung **gegen** eine
+    generische PII-Detection (Regex/ML-basierte Muster wie
+    E-Mail-Regex, Kreditkarten-Regex, etc.), weil:
+    (a) hohe False-Positive-Rate bei generischen Patterns,
+    (b) erfordert kontextspezifisches Wissen pro Anwendung,
+    (c) Komplexität steht nicht im Verhältnis zum Nutzen für ein
+        Debug-/Observability-Tool — das primäre Ziel ist
+        Post-Mortem-Analyse, nicht Datenschutz-Audit.
+  - **Entscheidung:** dokumentiert. Anwendungen, die PII-spezifische
+    Redaction brauchen, ergänzen `AdditionalSensitiveKeys` selbst.
+    Kein neues Feature in v1.1.
 
 ## Wie (grober Ansatz)
 
@@ -486,8 +532,8 @@ Jeder Step endet mit Coder-Commit + Doku-Commit (sofern Doku betroffen)
 **Qualität:**
 - `dotnet build` mit `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`
   ist grün.
-- `dotnet test` ist grün: alle bestehenden Tests + 5 neue Tests
-  (4 Audit-bezogene + `ResponseLoggingTests`).
+- `dotnet test` ist grün: alle bestehenden Tests + 6 neue Tests
+  (4 Audit-bezogene + `ResponseLoggingTests` + `RequestFullLoggingTests`).
 - `AiNetLinter` (Referenz-Integration) kann auf die neuen public APIs
   umgestellt werden und entfernt seine Reflection-Workarounds — Smoke-
   Test dokumentiert in `task-summary.md`.
