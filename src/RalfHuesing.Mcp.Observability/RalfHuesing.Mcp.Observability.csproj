@@ -3,7 +3,7 @@
     <OutputType>Library</OutputType>
     <IsPackable>true</IsPackable>
     <PackageId>RalfHuesing.Mcp.Observability</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Ralf Huesing</Authors>
     <Company>Ralf Huesing</Company>
     <Copyright>Copyright (c) 2026 Ralf Hüsing</Copyright>
@@ -22,18 +22,15 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
-
   <ItemGroup>
     <InternalsVisibleTo Include="RalfHuesing.Mcp.Observability.Tests" />
   </ItemGroup>
-
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
