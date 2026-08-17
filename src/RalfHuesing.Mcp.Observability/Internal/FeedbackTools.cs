@@ -54,6 +54,7 @@ internal sealed class FeedbackTools
             logWriter.WriteRecord(record);
         }
 
-        return ObservabilityConstants.DefaultFeedbackResponse;
+        return ctx?.Options.FeedbackConfirmationMessage
+            ?? ObservabilityConstants.DefaultFeedbackResponse;
     }
 }

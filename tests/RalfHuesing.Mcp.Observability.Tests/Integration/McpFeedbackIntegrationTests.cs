@@ -27,7 +27,8 @@ public sealed class McpFeedbackIntegrationTests : IntegrationTestBase
 
         var options = new McpObservabilityOptions
         {
-            LogDirectory = TempDirectory
+            LogDirectory = TempDirectory,
+            FeedbackConfirmationMessage = "Feedback saved for review."
         };
 
         var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
@@ -71,7 +72,7 @@ public sealed class McpFeedbackIntegrationTests : IntegrationTestBase
         Assert.False(result.IsError ?? false);
 
         var textContent = result.Content?.OfType<TextContentBlock>().FirstOrDefault()?.Text;
-        Assert.Equal("Feedback recorded. Thank you.", textContent);
+        Assert.Equal(options.FeedbackConfirmationMessage, textContent);
 
         var writer = host.Services.GetRequiredService<JsonlLogWriter>();
         Assert.True(File.Exists(writer.FilePath));

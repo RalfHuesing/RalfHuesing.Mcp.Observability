@@ -150,6 +150,33 @@ public sealed class ArgumentSanitizerTests
     }
 
     [Fact]
+    public void Sanitize_RecursivelyRedactsNestedObjectDictionariesAndCollections()
+    {
+        var input = new Dictionary<string, object?>
+        {
+            ["request"] = new Dictionary<string, object?>
+            {
+                ["token"] = "nested-secret",
+                ["visible"] = "value"
+            },
+            ["items"] = new object?[]
+            {
+                new Dictionary<string, object?> { ["password"] = "array-secret" }
+            }
+        };
+
+        var sanitized = ArgumentSanitizer.Sanitize(input);
+
+        Assert.NotNull(sanitized);
+        var request = Assert.IsType<Dictionary<string, object?>>(sanitized["request"]);
+        Assert.Equal("***REDACTED***", request["token"]);
+        Assert.Equal("value", request["visible"]);
+        var items = Assert.IsType<List<object?>>(sanitized["items"]);
+        var item = Assert.IsType<Dictionary<string, object?>>(Assert.Single(items));
+        Assert.Equal("***REDACTED***", item["password"]);
+    }
+
+    [Fact]
     public void Sanitize_AcceptsJsonObject_AndRedactsNestedSensitiveKeys()
     {
         var jsonObject = new JsonObject

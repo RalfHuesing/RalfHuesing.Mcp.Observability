@@ -60,8 +60,7 @@ public sealed class McpObservabilityOptions
     /// <summary>
     /// Message returned by the <c>report_observability_feedback</c> tool after a
     /// successful write. Defaults to
-    /// <see cref="DefaultFeedbackConfirmationMessage"/>. The tool itself consumes
-    /// this value (wiring in a later step); setting it here is inert until then.
+    /// <see cref="DefaultFeedbackConfirmationMessage"/>.
     /// </summary>
     public string FeedbackConfirmationMessage { get; set; } = DefaultFeedbackConfirmationMessage;
 

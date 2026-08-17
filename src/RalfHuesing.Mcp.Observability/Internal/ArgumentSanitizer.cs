@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -194,8 +195,37 @@ internal static class ArgumentSanitizer
             null => null,
             JsonElement el => SanitizeJsonElement(el, keys),
             JsonNode node => SanitizeNode(node, keys),
+            IReadOnlyDictionary<string, object?> dict => SanitizeFromObjectDict(dict, keys),
+            IDictionary<string, object?> dict => SanitizeFromObjectDict(dict, keys),
+            IDictionary dict => SanitizeDictionary(dict, keys),
+            IEnumerable values when value is not string => SanitizeCollection(values, keys),
             _ => value
         };
+    }
+
+    private static Dictionary<string, object?> SanitizeDictionary(IDictionary dict, HashSet<string> keys)
+    {
+        var entries = new List<KeyValuePair<string, object?>>();
+        foreach (DictionaryEntry entry in dict)
+        {
+            if (entry.Key is string key)
+            {
+                entries.Add(new KeyValuePair<string, object?>(key, entry.Value));
+            }
+        }
+
+        return SanitizeFromObjectDict(entries, keys);
+    }
+
+    private static List<object?> SanitizeCollection(IEnumerable values, HashSet<string> keys)
+    {
+        var result = new List<object?>();
+        foreach (var value in values)
+        {
+            result.Add(SanitizeObjectValue(value, keys));
+        }
+
+        return result;
     }
 
     private static object? SanitizeNode(JsonNode? node, HashSet<string> keys)
