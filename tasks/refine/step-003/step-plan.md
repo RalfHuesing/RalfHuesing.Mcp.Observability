@@ -1,5 +1,5 @@
 ---
-status: planned
+status: done (pending audit)
 type: step-plan
 task: refine
 step: 003

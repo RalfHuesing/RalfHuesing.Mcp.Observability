@@ -2,7 +2,7 @@
 task: refine
 type: codemap
 maintained_by: planer, coder, kritiker
-last_updated: 2026-08-17T23:25:00+02:00
+last_updated: 2026-08-18T00:20:00+02:00
 ---
 
 # CodeMap: refine — Robustheit, Kompatibilität, Diagnostik (v1.0.1)
@@ -77,9 +77,17 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
       mit der `WithObservability(IMcpServerBuilder, McpObservabilityOptions?)`-Extension,
       die Singleton-Registrierungen vornimmt (`McpObservabilityOptions` +
       `ObservabilityContext` + Factory-Forwarding `IMcpObservabilityService`),
-      bedingt `JsonlLogWriter`, ruft `builder.WithTools<FeedbackTools>()` auf.
-      Wird in EPIC-03 um `IPostConfigureOptions<McpServerOptions>` ergänzt.
-      (zuletzt: step-001)
+      bedingt `JsonlLogWriter`, ruft `builder.WithTools<FeedbackTools>()` auf
+      und registriert `IPostConfigureOptions<McpServerOptions>`
+      (`ObservabilityPostConfigureOptions`, Tool-Schatten-Fix).
+      (zuletzt: step-003)
+- **`src/RalfHuesing.Mcp.Observability/McpObservabilityTools.cs`** — `public static class`
+      (neu in EPIC-03, zweite Lockerung von Richtlinie §6): `CreateFeedbackTool(IServiceProvider)`
+      erzeugt das Feedback-Tool via `McpServerTool.Create` mit Method-Group auf
+      `internal FeedbackTools.ReportFeedback` (Parameternamen/Descriptions/Defaults
+      bleiben erhalten); `AddFeedbackTool`-Extension auf
+      `McpServerPrimitiveCollection<McpServerTool>`, idempotent per
+      `TryGetPrimitive`. (zuletzt: step-003)
 
 ### Internal (Namespace `RalfHuesing.Mcp.Observability.Internal`)
 
@@ -120,14 +128,21 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
       (public-Properties, `Options`/`LogFilePath` bleiben internal).
       (zuletzt: step-001)
 - **`src/RalfHuesing.Mcp.Observability/Internal/FeedbackTools.cs`** — `internal sealed class`
-      mit `[McpServerToolType]` + `ReportFeedback(...)` (statische Methode,
-      via Reflection von `builder.WithTools<FeedbackTools>()` aufgerufen).
-      Bleibt `internal`; EPIC-03 baut die public `McpObservabilityTools`-
-      Variante (semantisch identisch, aber via `McpServerTool.Create` Delegate).
+      mit `[McpServerToolType]` + `ReportFeedback(...)` (statische Methode).
+      Tool-Name kommt seit step-003 aus `ObservabilityConstants.FeedbackToolName`;
+      die public `McpObservabilityTools`-Variante nutzt dieselbe Methode per
+      Method-Group (Single Source). (zuletzt: step-003)
+- **`src/RalfHuesing.Mcp.Observability/Internal/ObservabilityPostConfigureOptions.cs`** —
+      `internal sealed class : IPostConfigureOptions<McpServerOptions>` (neu,
+      EPIC-03): hängt das Feedback-Tool nach allen Konfigurationen an eine
+      manuell gesetzte `McpServerOptions.ToolCollection` an (idempotent).
+      (zuletzt: step-003)
 - **`src/RalfHuesing.Mcp.Observability/Internal/ObservabilityConstants.cs`** — `internal static class`,
       alle Magic-Werte: `SchemaVersion=1`, `ToolCallRecordType="tool_call"`,
       `FeedbackRecordType="feedback"`, `RedactedMarker="***REDACTED***"`,
-      Default-Severity, Default-Feedback-Response, `UnknownServerName`.
+      Default-Severity, Default-Feedback-Response, `UnknownServerName`,
+      `FeedbackToolName="report_observability_feedback"` (seit step-003).
+      (zuletzt: step-003)
 - **`src/RalfHuesing.Mcp.Observability/Internal/JsonlSerializerOptions.cs`** — `internal static class`,
       `JsonSerializerOptions.Default` mit `CamelCase`-Naming, `WriteIndented=false`.
 
@@ -169,6 +184,12 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
       (EPIC-01, step-001), 4 Integration-Cases für die
       `McpObservabilityOptions.ServerName`/`ServerVersion`-Override-Kette
       gegen `McpServerOptions.ServerInfo`. (zuletzt: step-001)
+- **`tests/RalfHuesing.Mcp.Observability.Tests/Integration/McpServerOptionsToolCollectionTests.cs`** — neu
+      (EPIC-03, step-003), 3 Integration-Cases: manuelle `ToolCollection` +
+      `WithObservability` listet Feedback-Tool (Tool-Schatten-Fix), Pre-Add
+      bleibt idempotent (genau ein Eintrag), Aufruf schreibt korrekten
+      `feedback`-Record. `ManualSampleTools` als top-level `internal` Klasse
+      (AiNetLinter `BanPublicNestedTypes`). (zuletzt: step-003)
 
 ### Konfiguration
 
