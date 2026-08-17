@@ -19,6 +19,7 @@ public sealed class JsonlLogWriterFlushTests : IDisposable
         Directory.CreateDirectory(_tempDirectory);
     }
 
+    // ainetlinter-disable DuplicateCode - Standard IDisposable temp directory cleanup pattern
     public void Dispose()
     {
         try

@@ -1,0 +1,31 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased] - 2026-08-18
+
+### Added
+- **`IMcpObservabilityService`**: Public interface registered in DI providing read-only access to runtime observability metadata (`IsEnabled`, `ServerName`, `ServerVersion`, `CurrentLogFilePath`, `ProcessId`, `InstanceId`).
+- **`McpObservabilityTools`**: Public helper class with `CreateFeedbackTool(IServiceProvider)` and `AddFeedbackTool(this McpServerPrimitiveCollection<McpServerTool>, IServiceProvider)` for servers that manually manage `McpServerOptions.ToolCollection` without reflection on internal types.
+- **Tool-Shadowing Fix**: Registered `IPostConfigureOptions<McpServerOptions>` that automatically appends the feedback tool to manually configured `McpServerOptions.ToolCollection` instances.
+- **Tool-Call Response Logging**: Additive fields in `tool_call` records: `response` (concatenated text content blocks), `responseLength` (original text length), `responseLines` (line count), `responseTruncated` (boolean flag), and `nonTextContentBlocks` (count of image, audio, and embedded resource blocks).
+- **Options Extension**: Added `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage`, `AdditionalSensitiveKeys`, `EnableResponseLogging`, and `MaxResponseLength` to `McpObservabilityOptions`.
+- **Writer Lifecycle**: `JsonlLogWriter` now implements `IAsyncDisposable` with `DisposeAsync()` and exposes `FlushAsync(CancellationToken)`.
+- **Sample Project**: Added `samples/ManualToolCollectionServer/` demonstrating integration with manually populated tool collections.
+
+### Changed
+- **`ArgumentSanitizer`**: Generalized `Sanitize` method to accept `IReadOnlyDictionary<string, JsonElement>`, `IDictionary<string, object?>`, and `JsonObject`; added `Sanitize(string?, ...)` overload for responses; replaced `JsonNode.Parse` round-trips with direct `JsonElement` traversal.
+- **`ToolCallRecord`**: `Arguments` internal type changed to `IReadOnlyDictionary<string, object?>?`; JSON output format remains byte-identical for existing schemas.
+- **Architecture Guidelines §6**: Relaxed public API boundary to include `IMcpObservabilityService` and `McpObservabilityTools` alongside `McpObservabilityOptions` and `McpObservabilityExtensions`.
+
+## [1.0.0] - 2026-08-17
+
+### Added
+- Initial release of `RalfHuesing.Mcp.Observability`.
+- Single-line integration `.WithObservability()`.
+- Thread-safe JSONL tool-call logging with multi-process isolation.
+- Automatic argument sanitization for sensitive keys.
+- Structured LLM feedback tool `report_observability_feedback`.

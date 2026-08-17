@@ -35,9 +35,12 @@ From that point on:
 
 | Feature | Detail |
 |---------|--------|
-| Tool-call logging | Every MCP tool invocation is written as a `tool_call` record (tool name, arguments, duration, success, error). |
-| Argument sanitizing | Sensitive keys (`password`, `token`, `apiKey`, `secret`, …) are replaced with `"***REDACTED***"` before writing. |
+| Tool-call logging | Every MCP tool invocation is written as a `tool_call` record (tool name, arguments, duration, success, error, response content). |
+| Response logging | Tool response content is captured, sanitized against secret leakage, and optionally truncated to a configurable maximum length. |
+| Argument sanitizing | Sensitive keys (`password`, `token`, `apiKey`, `secret`, …) are replaced with `"***REDACTED***"` before writing. Custom keys can be added. |
 | Feedback tool | One registered MCP tool (`report_observability_feedback`) lets agents report bugs and feature requests without interrupting their workflow. |
+| Manual ToolCollection support | Works seamlessly with both automatic discovery (`WithToolsFromAssembly`) and manual collections (`McpServerOptions.ToolCollection`). |
+| Diagnostics Service | `IMcpObservabilityService` is registered in DI for read-only access to log paths, instance ID, and server metadata. |
 | Multi-process safe | Each process instance writes its own file (`{ServerName}_{PID}_{InstanceId}.jsonl`) — no concurrent-write issues. |
 | Survive reinstalls | Logs are written to `%LOCALAPPDATA%\RalfHuesing\McpObservability\`, outside the server release directory. |
 
@@ -53,6 +56,8 @@ dotnet add package RalfHuesing.Mcp.Observability
 ```
 
 ## Quick Start
+
+### Standard Integration (Attribute-Based Tool Discovery)
 
 ```csharp
 // Program.cs
@@ -76,6 +81,32 @@ builder.Services
 await builder.Build().RunAsync();
 ```
 
+### Manual `ToolCollection` Integration
+
+If your MCP server creates tools programmatically via `McpServerOptions.ToolCollection`,
+observability works out-of-the-box without manual reflection on internal tools:
+
+```csharp
+var myTool = McpServerTool.Create(
+    (Func<string, string>)MyTools.Echo,
+    new McpServerToolCreateOptions { Name = "echo" });
+
+builder.Services
+    .AddMcpServer(options =>
+    {
+        options.ServerInfo = new() { Name = "MyServer", Version = "1.0.0" };
+        options.ToolCollection = [myTool];
+    })
+    .WithStdioServerTransport()
+    .WithObservability(); // automatically appends report_observability_feedback via post-configure
+```
+
+You can also explicitly attach the feedback tool directly to any `McpServerPrimitiveCollection<McpServerTool>`:
+
+```csharp
+toolsCollection.AddFeedbackTool(serviceProvider);
+```
+
 ## Configuration
 
 All settings are optional. Without configuration, everything is enabled
@@ -86,7 +117,11 @@ and logs go to `%LOCALAPPDATA%\RalfHuesing\McpObservability\`.
   "McpObservability": {
     "Enabled": true,
     "EnableToolCallLogging": true,
-    "EnableFeedbackTool": true
+    "EnableFeedbackTool": true,
+    "EnableResponseLogging": true,
+    "MaxResponseLength": 0,
+    "ServerName": "CustomServerName",
+    "ServerVersion": "1.2.0"
     // "LogDirectory": "D:\\Logs\\Mcp"
   }
 }
@@ -97,7 +132,46 @@ and logs go to `%LOCALAPPDATA%\RalfHuesing\McpObservability\`.
 | `Enabled` | `bool` | `true` | Master switch. When `false`, no logging and no feedback tool. |
 | `EnableToolCallLogging` | `bool` | `true` | Logs every tool invocation as a `tool_call` record. |
 | `EnableFeedbackTool` | `bool` | `true` | Registers the `report_observability_feedback` MCP tool. |
+| `EnableResponseLogging` | `bool` | `true` | Captures tool response content and metrics in `tool_call` records. |
+| `MaxResponseLength` | `int` | `0` | Maximum character length for response strings before truncation (`0` = unconstrained). |
+| `ServerName` | `string?` | `null` | Overrides the server name in log records (falls back to `ServerInfo.Name`, entry assembly, or `"UnknownServer"`). |
+| `ServerVersion` | `string?` | `null` | Overrides the server version in log records. |
+| `FeedbackConfirmationMessage` | `string` | `"Feedback recorded. Thank you."` | Confirmation message returned by the feedback tool. |
+| `AdditionalSensitiveKeys` | `HashSet<string>` | `[]` | Additional argument / response keys to redact (case-insensitive). |
 | `LogDirectory` | `string?` | `null` | Override log root. `null` = `%LOCALAPPDATA%\RalfHuesing\McpObservability\`. |
+
+## Diagnostics Service
+
+Inject `IMcpObservabilityService` anywhere in your application to read current observability state:
+
+```csharp
+public class StatusEndpoint(IMcpObservabilityService observability)
+{
+    public object GetStatus() => new
+    {
+        observability.IsEnabled,
+        observability.ServerName,
+        observability.ServerVersion,
+        observability.CurrentLogFilePath,
+        observability.ProcessId,
+        observability.InstanceId
+    };
+}
+```
+
+## Reading logs while the server is running
+
+Log files are opened with `FileShare.ReadWrite`. When reading log files while the MCP server is actively writing, open the file with read-write sharing to avoid file-lock exceptions:
+
+```csharp
+using var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+using var reader = new StreamReader(stream, Encoding.UTF8);
+
+while (await reader.ReadLineAsync() is { } line)
+{
+    // process JSONL record
+}
+```
 
 ## Log file location
 
@@ -135,7 +209,12 @@ Each line is a self-contained JSON object. All records share these fields:
   "durationMs": 142,
   "success": true,
   "isErrorResult": false,
-  "errorMessage": null
+  "errorMessage": null,
+  "response": "Analysis clean. 0 violations found.",
+  "responseLength": 36,
+  "responseLines": 1,
+  "responseTruncated": false,
+  "nonTextContentBlocks": 0
 }
 ```
 
