@@ -12,7 +12,8 @@ namespace RalfHuesing.Mcp.Observability.Internal;
 internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
 {
     private readonly StreamWriter _writer;
-    private readonly Lock _lock = new();
+    private readonly SemaphoreSlim _operationGate = new(1, 1);
+    private int _disposalStarted;
 
     public JsonlLogWriter(ObservabilityContext context)
     {
@@ -29,27 +30,75 @@ internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
     internal void WriteRecord(object record)
     {
         var json = JsonSerializer.Serialize(record, JsonlSerializerOptions.Default);
-        lock (_lock)
+        _operationGate.Wait();
+        try
         {
+            if (IsDisposalStarted)
+            {
+                return;
+            }
+
             _writer.WriteLine(json);
+        }
+        finally
+        {
+            _operationGate.Release();
         }
     }
 
     internal async Task FlushAsync(CancellationToken ct = default)
     {
-        await _writer.FlushAsync(ct).ConfigureAwait(false);
+        await _operationGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!IsDisposalStarted)
+            {
+                await _writer.FlushAsync(ct).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
     }
 
     public void Dispose()
     {
-        lock (_lock)
+        if (!TryStartDisposal())
+        {
+            return;
+        }
+
+        _operationGate.Wait();
+        try
         {
             _writer.Dispose();
+        }
+        finally
+        {
+            _operationGate.Release();
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _writer.DisposeAsync().ConfigureAwait(false);
+        if (!TryStartDisposal())
+        {
+            return;
+        }
+
+        await _operationGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await _writer.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
     }
+
+    private bool IsDisposalStarted => Volatile.Read(ref _disposalStarted) != 0;
+
+    private bool TryStartDisposal() => Interlocked.Exchange(ref _disposalStarted, 1) == 0;
 }

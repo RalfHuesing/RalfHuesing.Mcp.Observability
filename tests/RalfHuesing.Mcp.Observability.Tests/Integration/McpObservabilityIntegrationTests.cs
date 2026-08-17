@@ -75,6 +75,11 @@ public sealed class McpObservabilityIntegrationTests : IntegrationTestBase
         Assert.Equal("echo", root.GetProperty("toolName").GetString());
         Assert.True(root.GetProperty("success").GetBoolean());
         Assert.False(root.GetProperty("isErrorResult").GetBoolean());
+        Assert.Equal("echo:hello world", root.GetProperty("response").GetString());
+        Assert.Equal("echo:hello world".Length, root.GetProperty("responseLength").GetInt32());
+        Assert.Equal(1, root.GetProperty("responseLines").GetInt32());
+        Assert.False(root.GetProperty("responseTruncated").GetBoolean());
+        Assert.Equal(0, root.GetProperty("nonTextContentBlocks").GetInt32());
 
         var args = root.GetProperty("arguments");
         Assert.Equal("hello world", args.GetProperty("text").GetString());

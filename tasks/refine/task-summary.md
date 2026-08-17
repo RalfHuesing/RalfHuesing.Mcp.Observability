@@ -41,7 +41,7 @@ Ja, 100% der Anforderungen aus `Konzept.md` (Muss-Haben, Schema-Stabilität, Arc
 
 ### Seiteneffekte / Regressionen
 
-Keine Regressionen. Bestehende Schema-Invarianten (§5) sind stabil; `ToolCallRecordSchemaStabilityTests` belegt byte-identische JSONL-Ausgaben für v1.0.0-Records. `dotnet test` führt 46/46 Tests erfolgreich aus. AiNetLinter schließt mit `Validation Exit Code: 0` und `OK` ab.
+Der Greenfield-`tool_call`-Vertrag ist stabil; `ToolCallRecordSchemaStabilityTests` belegt die vollständige Serialisierung aller Response-Felder. Die Audit-Fixes ergänzen lifecycle-sichere Writer-Synchronisation und aktualisierte Regressionstests; `dotnet test` führt 49/49 Tests erfolgreich aus. AiNetLinter schließt mit `Validation Exit Code: 0` und `OK` ab.
 
 ### Rules-Konformität (Stichproben)
 

@@ -66,11 +66,8 @@ public sealed class McpObservabilityOptions
 
     /// <summary>
     /// Master switch for the response content field in the <c>tool_call</c>
-    /// record. When <c>false</c>, <c>Response</c> and <c>ResponseTruncated</c>
-    /// are omitted from the JSONL output, and
-    /// <c>ResponseLength</c>/<c>ResponseLines</c>/<c>NonTextContentBlocks</c>
-    /// are omitted when they hold their default value. Consumer-specific
-    /// activation via <c>appsettings.json</c> (no global default value here).
+    /// record. When <c>false</c>, <c>response</c> is written as <c>null</c>;
+    /// response metrics remain available in every <c>tool_call</c> record.
     /// Default: <c>true</c>.
     /// </summary>
     public bool EnableResponseLogging { get; set; } = true;

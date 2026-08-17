@@ -48,8 +48,9 @@ Observability-Zustands anbieten wollen.
 - JSONL-Schema-Invariante: `schemaVersion`, `timestamp`, `recordType`,
   `instanceId` sind Pflichtfelder; `recordType` bleibt hart enumeriert
   auf `"tool_call" | "feedback"` (§5).
-- Bestehende JSONL-Konsumenten dürfen nicht gebrochen werden — der
-  JSON-Output muss byte-identisch zu v1.0.0 bleiben.
+- Greenfield-Schema: Jeder `tool_call`-Record enthält die vollständigen
+  Response-Felder (`response`, `responseLength`, `responseLines`,
+  `responseTruncated`, `nonTextContentBlocks`).
 - xUnit v3, `net10.0`, File-I/O-Tests in temporären Verzeichnissen (§7).
 
 **Bewusste Richtlinien-Änderung.** §6 ("Nur `McpObservabilityOptions`
@@ -142,9 +143,9 @@ werden ergänzend public. Die Lockerung wird in `McpObservabilityRichtlinien.mdc
 **JSONL-Schema-Stabilität** (`Internal/LogRecords.cs`):
 - `ToolCallRecord.Arguments` wechselt intern von
   `IReadOnlyDictionary<string, JsonElement>?` auf
-  `IReadOnlyDictionary<string, object?>?`. Der serialisierte JSON-Output
-  bleibt byte-identisch (alle Werte landen als `JsonElement` im JSON).
-- Test sichert die JSON-Output-Invariante explizit ab.
+-   `IReadOnlyDictionary<string, object?>?`. Der serialisierte JSON-Output
+  erhält dabei den vollständigen Greenfield-`tool_call`-Vertrag.
+- Test sichert die vollständige JSON-Output-Invariante explizit ab.
 
 **Manueller ToolCollection-Support** (`McpObservabilityTools.cs`, neu,
 public):
@@ -193,10 +194,9 @@ public):
 4. `JsonlLogWriterFlushTests`: Unit-Test, der `FlushAsync` und
    `DisposeAsync` verifiziert (Schreiben → FlushAsync → Datei lesbar).
 5. **JSONL-Schema-Invariante:** Neuer Test
-   `ToolCallRecordSchemaStabilityTests`, der das JSON-Output-Schema vor
-   und nach dem Type-Wechsel auf `IReadOnlyDictionary<string, object?>`
-   byte-genau vergleicht — bei `EnableResponseLogging = false` und
-   ohne Response-Felder.
+   `ToolCallRecordSchemaStabilityTests`, der den vollständigen
+   Greenfield-`tool_call`-Output bei `EnableResponseLogging = false`
+   byte-genau einschließlich aller Response-Felder vergleicht.
 6. `ResponseLoggingTests` (neu, Internal): verifiziert das neue
    Response-Logging in allen Varianten:
    - `EnableResponseLogging = true` → `response`-Feld enthält
@@ -517,15 +517,12 @@ Jeder Step endet mit Coder-Commit + Doku-Commit (sofern Doku betroffen)
   Konflikt, beide Felder).
 
 **Schema-Stabilität:**
-- Records **ohne** Response-Logging (oder mit
-  `EnableResponseLogging = false`) bleiben byte-identisch zu v1.0.0 —
-  gleiche Felder, gleiche Reihenfolge, gleiche Wert-Repräsentation.
-  Verifiziert per `ToolCallRecordSchemaStabilityTests`.
-- Records **mit** Response-Logging erhalten additive neue Felder
-  (`response`, `responseLength`, `responseLines`, `responseTruncated`,
-  `nonTextContentBlocks`). Die Erweiterung ist nicht-breaking für
-  Konsumenten, die auf Feld-Existenz prüfen — alte Felder bleiben
-  unverändert.
+- Jeder `tool_call`-Record enthält die Felder `response`,
+  `responseLength`, `responseLines`, `responseTruncated` und
+  `nonTextContentBlocks` in dieser Reihenfolge. Verifiziert per
+  `ToolCallRecordSchemaStabilityTests`.
+- Bei `EnableResponseLogging = false` ist `response` `null`; die übrigen
+  Felder behalten die Metriken des ungekürzten Responses.
 - `schemaVersion` bleibt `1`. `recordType`-Enum bleibt
   `"tool_call" | "feedback"`.
 

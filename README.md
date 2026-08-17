@@ -132,7 +132,7 @@ and logs go to `%LOCALAPPDATA%\RalfHuesing\McpObservability\`.
 | `Enabled` | `bool` | `true` | Master switch. When `false`, no logging and no feedback tool. |
 | `EnableToolCallLogging` | `bool` | `true` | Logs every tool invocation as a `tool_call` record. |
 | `EnableFeedbackTool` | `bool` | `true` | Registers the `report_observability_feedback` MCP tool. |
-| `EnableResponseLogging` | `bool` | `true` | Captures tool response content and metrics in `tool_call` records. |
+| `EnableResponseLogging` | `bool` | `true` | Captures sanitized response content in `tool_call` records. When `false`, `response` is `null`; response metrics remain recorded. |
 | `MaxResponseLength` | `int` | `0` | Maximum character length for response strings before truncation (`0` = unconstrained). |
 | `ServerName` | `string?` | `null` | Overrides the server name in log records (falls back to `ServerInfo.Name`, entry assembly, or `"UnknownServer"`). |
 | `ServerVersion` | `string?` | `null` | Overrides the server version in log records. |
@@ -201,6 +201,10 @@ Each line is a self-contained JSON object. All records share these fields:
 ```
 
 ### `tool_call` additional fields
+
+The `tool_call` schema always includes all response fields. When
+`EnableResponseLogging` is `false`, `response` is `null`; the response metrics
+still describe the unlogged tool result.
 
 ```json
 {

@@ -6,7 +6,7 @@ namespace RalfHuesing.Mcp.Observability.Tests.Internal;
 public sealed class ToolCallRecordSchemaStabilityTests
 {
     [Fact]
-    public void ToolCallRecord_WithResponseLoggingDisabled_IsByteIdenticalToV1_0_0()
+    public void ToolCallRecord_AlwaysContainsResponseFields()
     {
         // @covers ToolCallRecord
         var rawArguments = new Dictionary<string, JsonElement>
@@ -30,13 +30,17 @@ public sealed class ToolCallRecordSchemaStabilityTests
             DurationMs: 42,
             Success: true,
             IsErrorResult: false,
-            ErrorMessage: null);
+            ErrorMessage: null,
+            Response: null,
+            ResponseLength: 0,
+            ResponseLines: 0,
+            ResponseTruncated: false,
+            NonTextContentBlocks: 0);
 
         var actual = JsonSerializer.Serialize(record, JsonlSerializerOptions.Default);
 
-        // Baseline: v1.0.0 output, 14 fields in camelCase, no response fields
-        // (the 5 new fields are all at default values, omitted via
-        // JsonIgnoreCondition.WhenWritingDefault/WhenWritingNull).
+        // Canonical greenfield schema: all tool-call response fields are
+        // explicit, even when response content logging is disabled.
         const string baseline =
             "{\"schemaVersion\":1," +
             "\"timestamp\":\"2026-08-17T17:22:01.1230000Z\"," +
@@ -50,13 +54,18 @@ public sealed class ToolCallRecordSchemaStabilityTests
             "\"durationMs\":42," +
             "\"success\":true," +
             "\"isErrorResult\":false," +
-            "\"errorMessage\":null}";
+            "\"errorMessage\":null," +
+            "\"response\":null," +
+            "\"responseLength\":0," +
+            "\"responseLines\":0," +
+            "\"responseTruncated\":false," +
+            "\"nonTextContentBlocks\":0}";
 
         Assert.Equal(baseline, actual);
     }
 
     [Fact]
-    public void ToolCallRecord_WithResponseLoggingEnabled_ContainsResponseFields()
+    public void ToolCallRecord_WithResponseContent_ContainsResponseFields()
     {
         // @covers ToolCallRecord
         var rawArguments = new Dictionary<string, JsonElement>

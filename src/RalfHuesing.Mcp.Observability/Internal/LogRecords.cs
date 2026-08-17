@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace RalfHuesing.Mcp.Observability.Internal;
 
@@ -21,11 +20,11 @@ internal sealed record ToolCallRecord(
     bool Success,
     bool IsErrorResult,
     string? ErrorMessage,
-    [property: System.Text.Json.Serialization.JsonIgnoreAttribute(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Response = null,
-    [property: System.Text.Json.Serialization.JsonIgnoreAttribute(Condition = JsonIgnoreCondition.WhenWritingDefault)] int ResponseLength = 0,
-    [property: System.Text.Json.Serialization.JsonIgnoreAttribute(Condition = JsonIgnoreCondition.WhenWritingDefault)] int ResponseLines = 0,
-    [property: System.Text.Json.Serialization.JsonIgnoreAttribute(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool ResponseTruncated = false,
-    [property: System.Text.Json.Serialization.JsonIgnoreAttribute(Condition = JsonIgnoreCondition.WhenWritingDefault)] int NonTextContentBlocks = 0);
+    string? Response,
+    int ResponseLength,
+    int ResponseLines,
+    bool ResponseTruncated,
+    int NonTextContentBlocks);
 
 internal sealed record FeedbackRecord(
     int SchemaVersion,

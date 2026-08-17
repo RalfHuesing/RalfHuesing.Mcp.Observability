@@ -93,10 +93,9 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 
 - **`src/RalfHuesing.Mcp.Observability/Internal/LogRecords.cs`** — `internal sealed record`
       `ToolCallRecord` (Arguments ist `IReadOnlyDictionary<string, object?>?`
-      + 5 additive Response-Felder mit JsonIgnore WhenWritingNull/Default)
-      + `FeedbackRecord` (unverändert). Schema-Invariante §5 (Richtlinie)
-      bleibt — bei `EnableResponseLogging = false` ist der JSON-Output
-      byte-identisch zu v1.0.0. (zuletzt: step-002)
+      + 5 immer serialisierte Response-Felder) + `FeedbackRecord`
+      (unverändert). Bei `EnableResponseLogging = false` ist `response`
+      `null`, während die Response-Metriken erhalten bleiben. (zuletzt: Audit-Fix)
 - **`src/RalfHuesing.Mcp.Observability/Internal/ArgumentSanitizer.cs`** — `internal static class`,
       `Sanitize(object?, IEnumerable<string>?)` akzeptiert
       `IReadOnlyDictionary<string, JsonElement>`, `Dict<string, object?>`,
@@ -154,9 +153,9 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
       Cases für `Dictionary<string, object?>`-Round-Trip, `JsonObject`-Input
       und `Sanitize(string?, …)`-Overload. (zuletzt: step-002)
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/ToolCallRecordSchemaStabilityTests.cs`** (neu)
-      — byte-Identität gegen hartkodiertes v1.0.0-Baseline-JSON bei
-      `EnableResponseLogging = false` + Round-Trip-Check der Response-Felder
-      bei Non-Default-Werten. (zuletzt: step-002)
+      — vollständiger Greenfield-JSON-Vertrag mit expliziten Response-Feldern
+      bei `EnableResponseLogging = false` + Round-Trip-Check bei
+      Response-Inhalt. (zuletzt: Audit-Fix)
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Internal/ResponseLoggingTests.cs`** (neu)
       — 5 Cases (EnableResponseLogging true/false, MaxResponseLength 0/100,
       IsErrorResult, nonTextContentBlocks) gegen `ExtractResponse` direkt

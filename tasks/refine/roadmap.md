@@ -77,8 +77,8 @@ Versionsnummer setzt `scripts/create-release.ps1`.
       `IReadOnlyDictionary<string, object?>`, `JsonObject`, `IDictionary<string, object?>`);
       zusätzliche Methode `Sanitize(string? rawText, IEnumerable<string>?)` für
       Response-Strings. `ToolCallRecord.Arguments` intern auf
-      `IReadOnlyDictionary<string, object?>?` umstellen (JSON-Output bleibt
-      byte-identisch durch `JsonElement`-Serialisierung). Neue additive Felder
+      `IReadOnlyDictionary<string, object?>?` umstellen. Der vollständige
+      Greenfield-JSON-Output enthält die Response-Felder
       im `ToolCallRecord`: `Response`, `ResponseLength`, `ResponseLines`,
       `ResponseTruncated`, `NonTextContentBlocks`. In `ToolCallLoggingHandler`
       Response aus `CallToolResult.Content` extrahieren (nur `TextContent`,

@@ -50,5 +50,58 @@ public sealed class JsonlLogWriterFlushTests : TempDirectoryTestBase
         using var doc = JsonDocument.Parse(lines[0]);
         Assert.Equal("async-disposed-payload", doc.RootElement.GetProperty("message").GetString());
     }
+
+    [Fact]
+    public async Task FlushAsync_ConcurrentWithWrites_ProducesValidJsonLines()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var writer = CreateWriter();
+        const int recordCount = 100;
+
+        var writes = Enumerable.Range(0, recordCount)
+            .Select(index => Task.Run(() => writer.WriteRecord(new { index }), ct));
+        var flushes = Enumerable.Range(0, 10)
+            .Select(_ => writer.FlushAsync(ct));
+
+        await Task.WhenAll(writes.Concat(flushes));
+        await writer.DisposeAsync();
+
+        var lines = await File.ReadAllLinesAsync(writer.FilePath, ct);
+        Assert.Equal(recordCount, lines.Length);
+        foreach (var line in lines)
+        {
+            using var document = JsonDocument.Parse(line);
+            Assert.True(document.RootElement.TryGetProperty("index", out _));
+        }
+    }
+
+    [Fact]
+    public async Task DisposeAsync_ConcurrentWithWrites_IsIdempotentAndWritesWholeLines()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var writer = CreateWriter();
+        writer.WriteRecord(new { index = -1 });
+        var writes = Enumerable.Range(0, 100)
+            .Select(index => Task.Run(() => writer.WriteRecord(new { index }), ct));
+
+        var disposal = writer.DisposeAsync().AsTask();
+        await Task.WhenAll(writes.Append(disposal));
+        writer.Dispose();
+        await writer.DisposeAsync();
+
+        var lines = await File.ReadAllLinesAsync(writer.FilePath, ct);
+        Assert.Contains(lines, line => line.Contains("\"index\":-1", StringComparison.Ordinal));
+        foreach (var line in lines)
+        {
+            using var document = JsonDocument.Parse(line);
+            Assert.True(document.RootElement.TryGetProperty("index", out _));
+        }
+    }
+
+    private JsonlLogWriter CreateWriter()
+    {
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
+        return new JsonlLogWriter(new ObservabilityContext(options));
+    }
 }
 

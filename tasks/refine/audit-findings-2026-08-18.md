@@ -18,7 +18,7 @@ updated regression tests:
 - `ArgumentSanitizer` now recursively sanitizes nested .NET dictionaries and
   collections in `Dictionary<string, object?>` inputs.
 
-## Remaining finding: writer lifecycle synchronization
+## Resolved finding: writer lifecycle synchronization
 
 **Priority:** medium
 
@@ -39,28 +39,21 @@ the new lifecycle operations use behavior consistent with the existing
 thread-safe write path. It can result in a race between writing and closing the
 underlying stream during server shutdown.
 
-### Required implementation
+### Implemented resolution
 
-Replace the mixed synchronization model with one primitive that safely covers
-all writer operations. A `SemaphoreSlim` is suitable because it can be awaited
-by `FlushAsync` and `DisposeAsync`; `WriteRecord` can acquire it synchronously.
-The implementation must also make disposal idempotent and reject or safely
-ignore writes after disposal.
+`JsonlLogWriter` now owns a single `SemaphoreSlim` for every write, flush, and
+dispose operation. Disposal is atomically started once, waits for an active
+operation, closes the writer, and is idempotent across synchronous and
+asynchronous disposal. Writes and flushes requested after disposal starts are
+safe no-ops.
 
-### Required tests
+### Verification
 
-Add isolated temporary-directory tests that:
+Isolated temporary-directory tests cover concurrent writes with `FlushAsync`,
+racing writes with `DisposeAsync`, valid JSONL line integrity, and repeated
+mixed synchronous/asynchronous disposal.
 
-1. run writes concurrently with `FlushAsync` and confirm valid JSONL lines;
-2. race an in-flight write with `DisposeAsync` and confirm no unhandled
-   `ObjectDisposedException` or corrupted partial line;
-3. invoke synchronous and asynchronous disposal repeatedly to verify
-   idempotence.
-
-The implementation must pass `dotnet build --configuration Release` and
-`dotnet test --configuration Release` with zero warnings.
-
-## Remaining finding: default response logging conflicts with byte compatibility
+## Resolved finding: response schema contract
 
 **Priority:** medium
 
@@ -83,18 +76,12 @@ record. The existing schema-stability test only constructs a record with all
 response fields at default values; it does not exercise the default request
 path and cannot demonstrate the stated compatibility guarantee.
 
-### Decision required
+### Decision and implemented resolution
 
-Choose and document one compatible contract before changing code:
-
-1. **Compatibility-first:** set `EnableResponseLogging` to `false` by default,
-   retaining byte-identical records until consumers opt in.
-2. **Feature-first:** keep the default at `true`, state that records gain
-   additive fields, and release with an appropriate SemVer and migration note.
-3. **Versioned schema:** retain the default at `true` but introduce a new
-   schema version; this is a breaking schema change and requires a major
-   release.
-
-After the decision, add an integration test which invokes a real tool using
-the chosen default and compares the serialized record with the selected
-compatibility contract.
+This greenfield project adopts a complete, feature-first schema contract:
+every `tool_call` record serializes `response`, `responseLength`,
+`responseLines`, `responseTruncated`, and `nonTextContentBlocks`. The default
+continues to capture response content. When response content logging is
+disabled, `response` is `null` while the remaining metrics describe the
+unlogged result. Schema tests assert the complete canonical JSON, and an
+integration test verifies response fields from a real default tool call.
