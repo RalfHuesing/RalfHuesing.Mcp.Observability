@@ -116,14 +116,14 @@ Versionsnummer setzt `scripts/create-release.ps1`.
       §„Writer-Lifecycle". **Hinweis:** Der README-Abschnitt zum
       `FileShare.ReadWrite`-Live-Reader-Hinweis ist Teil von EPIC-05 (Doku).
 
-- [ ] **EPIC-05: Doku, Sample & Release-Vorbereitung** — `README.md`
+- [x] **EPIC-05: Doku, Sample & Release-Vorbereitung** _(abgeschlossen via step-005 → `896daf5` — approved)_ — `README.md`
       erweitern: Options-Tabelle um 6 neue Properties, neue Sektion
       „Manual ToolCollection" mit Copy-Paste-Beispiel für `AddFeedbackTool`,
       neue Sektion „Response Logging" (Default: vollständig/unbegrenzt,
       `appsettings.json`-Override-Beispiel), neuer Hinweis-Block
       „Reading logs while the server is running" mit `FileShare.ReadWrite`-
       Codebeispiel. Neues `CHANGELOG.md` (Keep-a-Changelog, `## [Unreleased]`
-      mit Datum 2026-08-17 — finale Version setzt das Release-Skript).
+      mit Datum 2026-08-18 — finale Version setzt das Release-Skript).
       Neues Sample `samples/ManualToolCollectionServer/` mit eigenem
       `.csproj` und `Program.cs`, das `McpServerOptions.ToolCollection`
       manuell befüllt + `WithObservability` + `AddFeedbackTool` nutzt

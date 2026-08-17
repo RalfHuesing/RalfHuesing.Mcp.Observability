@@ -2,10 +2,10 @@
 status: executing
 task: refine
 started_at: 2026-08-17T22:39:30+02:00
-last_updated: 2026-08-18T00:50:00+02:00
-total_steps: 4
+last_updated: 2026-08-18T01:10:00+02:00
+total_steps: 5
 rules_dir: .agents/rules
-current_step: step-004
+current_step: step-005
 ---
 
 # Task State: refine
@@ -13,9 +13,9 @@ current_step: step-004
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 4 (regulär + Korrekturen — weicher Check-in bei
+- **Steps gesamt:** 5 (regulär + Korrekturen — weicher Check-in bei
   jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
-- **Aktueller Schritt:** `step-004` (approved, Übergang zu step-005 / EPIC-05)
+- **Aktueller Schritt:** `step-005` (approved — alle 5 Epics abgeschlossen, bereit für Global Review)
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T22:39:30+02:00
@@ -29,6 +29,7 @@ current_step: step-004
 | step-002 | EPIC-02 | done | Sanitizer-Generalisierung, LogRecord-Type-Wechsel und Response-Logging | - | 50ac699 | approved | 50ac699 |
 | step-003 | EPIC-03 | done | Public Feedback-Tool-API, Tool-Schatten-Fix und Richtlinien-Lockerung §6 | - | ef83d6e | approved | ef83d6e |
 | step-004 | EPIC-04 | done | Writer-Lifecycle (IAsyncDisposable + FlushAsync) | - | 06a3489 | approved | 06a3489 |
+| step-005 | EPIC-05 | done | Dokumentation, Sample-Server, CHANGELOG und Linter-Report-Bereinigung | - | 896daf5 | approved | 896daf5 |
 
 ## Config (optional)
 
