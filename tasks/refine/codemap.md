@@ -2,7 +2,7 @@
 task: refine
 type: codemap
 maintained_by: planer, coder, kritiker
-last_updated: 2026-08-18T00:45:00+02:00
+last_updated: 2026-08-18T01:05:00+02:00
 ---
 
 # CodeMap: refine — Robustheit, Kompatibilität, Diagnostik (v1.0.1)
@@ -207,20 +207,18 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 - **`samples/MinimalMcpServerWithObservability/Program.cs`** — bestehender
       Minimal-Server mit `WithTools<SampleTools>()` + `WithObservability()`.
       Repräsentiert den „happy path" (DI-Tools). Bleibt in v1.0.1 unverändert.
-- **`samples/ManualToolCollectionServer/`** — **geplant, noch nicht
-      angelegt** (EPIC-05). Wird `Program.cs` + `.csproj` enthalten, der
-      `McpServerOptions.ToolCollection` manuell befüllt + `AddFeedbackTool`
-      nutzt.
+- **`samples/ManualToolCollectionServer/Program.cs`** — neu (EPIC-05,
+      step-005): Sample-Server mit manuell befüllter `ToolCollection` +
+      `WithObservability()`. Zeigt Tool-Schatten-Fix in Aktion. (zuletzt: step-005)
 
 ### Dokumentation
 
-- **`README.md`** — User-facing Doku mit „Why", „Quick Start", Options-Tabelle,
-      JSONL-Schema-Beispiel, Feedback-Tool-Tabelle. EPIC-05 erweitert:
-      Options-Tabelle (6 neue Properties), „Manual ToolCollection"-Sektion,
-      „Response Logging"-Sektion, „Reading logs while the server is running"-
-      Hinweis-Block mit `FileShare.ReadWrite`-Codebeispiel.
-- **`CHANGELOG.md`** — **geplant, noch nicht angelegt** (EPIC-05).
-      Keep-a-Changelog-Format, Sektion `## [Unreleased]` mit Datum 2026-08-17.
+- **`README.md`** — User-facing Doku mit „Why", „Quick Start", Options-Tabelle
+      (10 Properties), „Manual ToolCollection"-Sektion, „Diagnostics Service"-
+      Sektion, „Reading logs while the server is running"-Hinweis-Block mit
+      `FileShare.ReadWrite`-Codebeispiel. (zuletzt: step-005)
+- **`CHANGELOG.md`** — neu (EPIC-05, step-005): Keep-a-Changelog-Format,
+      Sektion `## [Unreleased]` (Stand 2026-08-18) und `## [1.0.0]`. (zuletzt: step-005)
 
 ### Konzept & Planung
 
