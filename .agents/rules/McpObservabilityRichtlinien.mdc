@@ -93,7 +93,25 @@ Neue Felder dürfen addiert werden (additive, non-breaking). Felder umbenennen o
 
 ## 6. Öffentliche API-Stabilität
 
-- **`McpObservabilityOptions`** und **`McpObservabilityExtensions.WithObservability`** sind die einzigen öffentlichen API-Surface-Punkte. Alle internen Klassen (`ObservabilityContext`, `JsonlLogWriter`, `ArgumentSanitizer`, `ToolCallLoggingHandler`, `FeedbackTools`) müssen `internal` bleiben.
+- **Öffentliche Typen (Stand 2026-08-18, gelockert):** `McpObservabilityOptions`,
+  `McpObservabilityExtensions.WithObservability`, `IMcpObservabilityService` und
+  `McpObservabilityTools` (`CreateFeedbackTool` / `AddFeedbackTool`) sind die
+  einzigen öffentlichen API-Surface-Punkte. Alle internen Klassen
+  (`ObservabilityContext`, `JsonlLogWriter`, `ArgumentSanitizer`,
+  `ToolCallLoggingHandler`, `FeedbackTools`, `ObservabilityPostConfigureOptions`)
+  müssen `internal` bleiben.
+- **Begründung der Lockerung (2026-08-18):** Die produktive Integration in
+  `AiNetLinter` (manuell befüllte `McpServerOptions.ToolCollection`, kein
+  `Host.CreateApplicationBuilder`-Tool-Discovery) zwang Konsumenten zu
+  Reflection auf `internal FeedbackTools`. `IMcpObservabilityService`
+  (Diagnostik) und `McpObservabilityTools` (manuelle Tool-Registrierung ohne
+  Reflection) lösen diese Workarounds public auf.
+- **Geprüfte Alternativen (verworfen):** `InternalsVisibleTo` für Konsumenten
+  (koppelt an Interna, bricht bei Refactorings still); Duplikation der
+  Feedback-Tool-Implementierung als public Kopie (Drift-Risiko, die
+  Method-Group auf `internal FeedbackTools.ReportFeedback` bleibt Single
+  Source); `IMcpObservabilityService.LogCustomRecord` (Non-Goal, würde
+  JSONL-Schema-Invariante §5 aufweichen).
 - **Namespace:** Ausschließlich `RalfHuesing.Mcp.Observability` für öffentliche Typen. Interne Typen liegen in `RalfHuesing.Mcp.Observability.Internal`.
 - Property-Umbenennung in `McpObservabilityOptions` ist ein Breaking Change — nie ohne Major-Version.
 

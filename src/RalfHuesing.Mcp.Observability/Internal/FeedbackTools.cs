@@ -11,7 +11,7 @@ namespace RalfHuesing.Mcp.Observability.Internal;
 [McpServerToolType]
 internal sealed class FeedbackTools
 {
-    [McpServerTool(Name = "report_observability_feedback")]
+    [McpServerTool(Name = ObservabilityConstants.FeedbackToolName)]
     [Description(
         "Report an issue or a feature request about this MCP server. " +
         "Use this tool whenever something is wrong (bugs, false positives, unexpected results, confusing output) " +

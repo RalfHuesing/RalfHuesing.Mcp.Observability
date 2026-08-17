@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RalfHuesing.Mcp.Observability.Internal;
 
@@ -50,6 +51,8 @@ public static class McpObservabilityExtensions
         if (resolvedOptions.EnableFeedbackTool)
         {
             builder.WithTools<FeedbackTools>();
+            builder.Services.AddSingleton<IPostConfigureOptions<McpServerOptions>,
+                ObservabilityPostConfigureOptions>();
         }
 
         return builder;
