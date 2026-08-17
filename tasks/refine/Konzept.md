@@ -1,244 +1,385 @@
-# Audit-Report & Refinement-Konzept: RalfHuesing.Mcp.Observability
-
-**Projekt:** `RalfHuesing.Mcp.Observability`  
-**Zielgruppe:** Entwickler und nachfolgende LLM-Agenten, die das Paket überarbeiten und als Version `1.1.0` (oder `2.0.0`) veröffentlichen sollen.  
-**Erstellt am:** 17. August 2026  
-**Referenz-Integration:** `AiNetLinter` (Roslyn-basierter MCP-Server mit 22 Tools)
-
+---
+status: draft  # draft | ready
+type: konzept
+project_kind: brownfield
+estimated_scope: medium
+rules_dir: .agents/rules
+last_updated: 2026-08-17T22:15:00Z
+open_questions:
+  - Keine — bereit für User-Bestätigung (siehe Schritt 6)
 ---
 
-## 1. Executive Summary & Audit-Ergebnis
+# Konzept: RalfHuesing.Mcp.Observability v1.1 — Robustheit, Kompatibilität, Diagnostik
 
-Das Paket `RalfHuesing.Mcp.Observability` (v1.0.0) erfüllt seine Kernaufgabe: Tool-Aufrufe werden über den `CallToolFilter` abgefangen und thread-sicher in standardisierten JSONL-Dateien gespeichert. 
+## Ziel (Was)
 
-Bei der praktischen Integration in einen realen, produktiven MCP-Server (`AiNetLinter`) traten jedoch **vier signifikante Hürden** auf, die Workarounds im konsumierenden Code erforderten:
+`RalfHuesing.Mcp.Observability` v1.1.0 behebt die vier in der praktischen
+Integration mit `AiNetLinter` identifizierten Hürden (Tool-Schatten-Effekt
+bei manueller `ToolCollection`, fragiles Argument-Casting im Sanitizer,
+fehlende `ServerName`/`ServerVersion`-Overrides, zu enge `internal`-
+Sichtbarkeit) und ergänzt zwei neue öffentliche API-Typen
+(`IMcpObservabilityService` für Diagnostik, `McpObservabilityTools` für
+manuelle Tool-Registrierung), einen zweiten Sample-Server, vollständige
+Test-Coverage für die neuen Pfade sowie eine CHANGELOG-Datei. Alle
+Änderungen sind additiv — bestehende v1.0.0-Konsumenten bleiben
+vollständig kompatibel, der Bump ist Minor (`1.0.0` → `1.1.0`).
 
-1. **Tool-Schatten-Effekt bei manueller `ToolCollection` (Kritisch):**  
-   In `ModelContextProtocol.NET` 2.x ignoriert der Server alle über DI (`builder.WithTools<T>()`) registrierten Tools, sobald der Server `options.ToolCollection` explizit setzt. Dadurch war das Tool `report_observability_feedback` unsichtbar.
-2. **Zu restriktive Sichtbarkeit (`internal`):**  
-   `FeedbackTools`, `ObservabilityContext` und `JsonlLogWriter` sind komplett `internal`. Der konsumierende Server konnte den Registrierungsfehler nicht ohne Reflection beheben und hat keine Möglichkeit, den Logging-Status oder den Log-Dateipfad programmatisch abzufragen.
-3. **Fragiles Casting im `ArgumentSanitizer`:**  
-   `request.Params?.Arguments as IReadOnlyDictionary<string, JsonElement>` schlägt fehl und wird `null`, wenn Argumente als `Dictionary<string, object?>` oder `JsonObject` übergeben werden.
-4. **Fehlende `ServerName` / `ServerVersion`-Overrides in `McpObservabilityOptions`:**  
-   In Test-Runners oder schlanken CLI-Servern ohne `Host.CreateApplicationBuilder` ermittelt der Server oft `testhost` oder `UnknownServer` als Servername, da die Optionen keine direkte Konfiguration dafür bieten.
+## Warum / Kontext
 
----
+**Hintergrund.** Das Paket ist seit v1.0.0 auf nuget.org veröffentlicht
+und wird produktiv in `AiNetLinter` (Roslyn-basierter MCP-Server mit 22
+Tools) eingesetzt. Bei dieser Integration traten vier Reibungspunkte auf,
+die im Audit-Report vom 17.08.2026 dokumentiert sind und Workarounds im
+konsumierenden Code nötig machten (Reflection auf `FeedbackTools`,
+stilles `null` in `tool_call`-Records, `UnknownServer`-Fallback, ignoriertes
+Feedback-Tool bei manueller `ToolCollection`).
 
-## 2. Detaillierte Analyse der aufgetretenen Workarounds
+**Zielgruppe.** Konsumenten von `RalfHuesing.Mcp.Observability`, die
+entweder (a) MCP-Server mit manueller `ToolCollection` bauen, (b) ihre
+Tools in Tests/CLI-Servern ohne `Host.CreateApplicationBuilder`
+betreiben, oder (c) Diagnostik-/Health-Endpunkte auf Basis des
+Observability-Zustands anbieten wollen.
 
-### 2.1 Workaround 1: `builder.WithTools<FeedbackTools>()` vs. `McpServerOptions.ToolCollection`
+**Constraints (aus Richtlinien, nicht verhandelbar).**
+- `TreatWarningsAsErrors=true` (Zero-Warning-Direktive, §8).
+- JSONL-Schema-Invariante: `schemaVersion`, `timestamp`, `recordType`,
+  `instanceId` sind Pflichtfelder; `recordType` bleibt hart enumeriert
+  auf `"tool_call" | "feedback"` (§5).
+- Bestehende JSONL-Konsumenten dürfen nicht gebrochen werden — der
+  JSON-Output muss byte-identisch zu v1.0.0 bleiben.
+- xUnit v3, `net10.0`, File-I/O-Tests in temporären Verzeichnissen (§7).
 
-- **Problemursache:**  
-  Viele fortgeschrittene MCP-Server (z. B. mit dynamischen Tools, Closure-basierten Handlern oder strikter DI-Vermeidung) initialisieren ihre Tools über:
-  ```csharp
-  serverOptions.ToolCollection = new McpServerPrimitiveCollection<McpServerTool>();
-  ```
-  Im MCP-SDK (`ModelContextProtocol.Server`) führt das Setzen von `ToolCollection` dazu, dass der Server **nur** diese Collection auflistet und `builder.WithTools<T>()` vollständig ignoriert.
-- **Folge in v1.0.0:**  
-  `report_observability_feedback` taucht weder in `tools/list` auf, noch kann der Agent Feedback geben.
-- **Notwendiger Workaround im Host-Projekt:**  
-  Der Host musste `FeedbackTools.ReportFeedback` per Reflection aus der Assembly laden und manuell per `McpServerTool.Create` in seine `ToolCollection` einhängen.
+**Bewusste Richtlinien-Änderung für v1.1.** §6 ("Nur `McpObservabilityOptions`
+und `McpObservabilityExtensions.WithObservability` sind public") wird
+**gelockert**: `IMcpObservabilityService` und `McpObservabilityTools`
+werden ergänzend public. Die Lockerung wird in `McpObservabilityRichtlinien.mdc`
+§6 mit Datum, Begründung und geprüften Alternativen dokumentiert.
 
----
+## Scope
 
-### 2.2 Workaround 2: Interne Sichtbarkeit der Kernklassen
+### Muss-Haben
 
-- **Problemursache:**  
-  Alle Klassen unter `Internal/` (`FeedbackTools`, `ObservabilityContext`, `JsonlLogWriter`, Records) sind `internal`.
-- **Folge in v1.0.0:**  
-  - Ein MCP-Server kann seinen Zustand (z. B. für `get_server_health`) nicht befragen (`IsActive`, `CurrentLogFilePath`, `RecordsWritten`).
-  - Ein Server kann keine benutzerdefinierten Fehlereinträge (z. B. aus globalen Unhandled-Exception-Filtern) in das Log schreiben.
-- **Notwendiger Workaround im Host-Projekt:**  
-  Reflection auf `FeedbackTools.ReportFeedback`.
+**Optionen-Erweiterung** (`McpObservabilityOptions.cs`):
+- Neue additive Properties: `ServerName` (string?), `ServerVersion`
+  (string?), `FeedbackConfirmationMessage` (string, default aus
+  `ObservabilityConstants.DefaultFeedbackResponse`),
+  `AdditionalSensitiveKeys` (`HashSet<string>`, default leer,
+  `OrdinalIgnoreCase`).
+- Reihenfolge der Auflösung in `ObservabilityContext`:
+  `options.ServerName` → `McpServerOptions.ServerInfo.Name` → EntryAssembly
+  → `"UnknownServer"`. Analog für `ServerVersion`.
 
----
+**ArgumentSanitizer generalisieren** (`Internal/ArgumentSanitizer.cs`):
+- `Sanitize(object? rawArguments, IEnumerable<string>? additionalKeys = null)`
+  akzeptiert `object?` und normalisiert intern aus:
+  `IReadOnlyDictionary<string, JsonElement>`, `IReadOnlyDictionary<string, object?>`,
+  `JsonObject`, beliebiges `IDictionary<string, object?>`. Rückgabe:
+  `IReadOnlyDictionary<string, object?>?` (Werte als `JsonElement` für
+  stabile JSON-Serialisierung).
+- `SensitiveKeys` wird aus zwei Quellen gemerged: hartkodierte
+  Default-Liste + `additionalKeys`.
+- `ToolCallLoggingHandler.CreateRecord` reicht `request.Params?.Arguments`
+  ohne Cast direkt an `Sanitize` weiter.
 
-### 2.3 Workaround 3: Argument-Typ-Casting in `ToolCallLoggingHandler`
+**JSONL-Schema-Stabilität** (`Internal/LogRecords.cs`):
+- `ToolCallRecord.Arguments` wechselt intern von
+  `IReadOnlyDictionary<string, JsonElement>?` auf
+  `IReadOnlyDictionary<string, object?>?`. Der serialisierte JSON-Output
+  bleibt byte-identisch (alle Werte landen als `JsonElement` im JSON).
+- Test sichert die JSON-Output-Invariante explizit ab.
 
-- **Problemursache:**  
-  In `ToolCallLoggingHandler.cs`:
-  ```csharp
-  var sanitized = ArgumentSanitizer.Sanitize(
-      request.Params?.Arguments as IReadOnlyDictionary<string, System.Text.Json.JsonElement>);
-  ```
-  `request.Params?.Arguments` ist vom Typ `IReadOnlyDictionary<string, object?>` oder `JsonObject` je nach Client-Serialisierung.
-- **Folge in v1.0.0:**  
-  Der `as`-Cast liefert häufig `null`, wodurch `Arguments` im `tool_call`-Record leer (`null`) bleibt, obwohl Parameter übergeben wurden.
-- **Notwendiger Workaround im Host-Projekt:**  
-  Keine direkte Lösung im Host möglich (stille Datenverarmung im JSONL).
+**Manueller ToolCollection-Support** (`McpObservabilityTools.cs`, neu,
+public):
+- `static McpServerTool CreateFeedbackTool(IServiceProvider services)`
+  erzeugt das `report_observability_feedback`-Tool als `McpServerTool`
+  via `McpServerTool.Create`. Implementiert das Tool semantisch identisch
+  zu `FeedbackTools.ReportFeedback`, aber über ein `Delegate` (statt
+  Reflection auf `internal`).
+- `static void AddFeedbackTool(this McpServerPrimitiveCollection<McpServerTool> tools, IServiceProvider services)`
+  hängt das Tool an eine bestehende Collection an, falls noch nicht
+  vorhanden (idempotent per `ProtocolTool.Name`-Vergleich).
 
----
+**Tool-Schatten-Fix** (`McpObservabilityExtensions.cs`):
+- Registriert zusätzlich `IPostConfigureOptions<McpServerOptions>`, das
+  nach Abschluss aller Konfigurationen prüft, ob
+  `McpServerOptions.ToolCollection` gesetzt und `EnableFeedbackTool` true
+  ist; falls ja, ruft `AddFeedbackTool` auf der Collection auf, sofern
+  noch nicht vorhanden. Dadurch funktioniert `WithObservability()` sowohl
+  mit `builder.WithTools()` als auch mit manueller `ToolCollection`.
 
-### 2.4 Workaround 4: File Locking in Test- und Reader-Szenarien
+**Diagnostik-Service** (`IMcpObservabilityService.cs`, neu, public):
+- Properties: `IsEnabled`, `ServerName`, `ServerVersion`, `CurrentLogFilePath`,
+  `ProcessId`, `InstanceId`.
+- `ObservabilityContext` (internal) implementiert das Interface
+  (`public sealed class ObservabilityContext : IMcpObservabilityService`).
+- Registrierung im DI-Container als Singleton über
+  `services.AddSingleton<IMcpObservabilityService>(sp => sp.GetRequiredService<ObservabilityContext>())`.
 
-- **Problemursache:**  
-  `JsonlLogWriter` hält den `FileStream` mit `FileShare.ReadWrite` offen. Das ist gut für parallele Server, aber Standardmethoden wie `File.ReadAllLines(path)` nutzen unter Windows `FileShare.Read`, was fehlschlägt (`IOException: The process cannot access the file...`), solange der Server/Writer nicht disposed ist.
-- **Empfehlung:**  
-  Die Dokumentation muss explizit darauf hinweisen, wie Logdateien im laufenden Betrieb gelesen werden (mit `FileShare.ReadWrite`), und `JsonlLogWriter` sollte `IAsyncDisposable` sowie eine `FlushAsync()`-Methode unterstützen.
+**Writer-Lifecycle** (`Internal/JsonlLogWriter.cs`):
+- `JsonlLogWriter` implementiert zusätzlich `IAsyncDisposable`
+  (`DisposeAsync` schließt den `StreamWriter` sauber mit `FlushAsync`).
+- Neue Methode `Task FlushAsync(CancellationToken ct = default)`.
+- Doku-Hinweis im README: Live-Reader müssen `FileShare.ReadWrite` (oder
+  `FileShare.Read | FileShare.Write`) nutzen, nicht `File.ReadAllLines`.
 
----
+**Tests** (`tests/.../Internal/` + `tests/.../Integration/`):
+1. `ArgumentSanitizerTests`: zusätzliche Cases für
+   `Dictionary<string, object?>` und `JsonObject`-Inputs.
+2. `McpServerOptionsToolCollectionTests`: Integration-Test, der einen
+   MCP-Server mit manuell gesetzter `ToolCollection` + `WithObservability`
+   aufbaut und verifiziert, dass `tools/list` das
+   `report_observability_feedback`-Tool enthält.
+3. `McpOptionsServerNameOverrideTests`: Integration-Test, der
+   `McpObservabilityOptions.ServerName = "CustomName"` setzt und prüft,
+   dass die geschriebenen JSONL-Records den Custom-Namen tragen.
+4. `JsonlLogWriterFlushTests`: Unit-Test, der `FlushAsync` und
+   `DisposeAsync` verifiziert (Schreiben → FlushAsync → Datei lesbar).
+5. **JSONL-Schema-Invariante:** Neuer Test
+   `ToolCallRecordSchemaStabilityTests`, der das JSON-Output-Schema vor
+   und nach dem Type-Wechsel auf `IReadOnlyDictionary<string, object?>`
+   byte-genau vergleicht.
 
-## 3. Ziel-Architektur für `RalfHuesing.Mcp.Observability` (v1.1 / v2.0)
+**Dokumentation**:
+- `README.md` — neue Sektion "Manual ToolCollection" mit Copy-Paste-Beispiel
+  für den Reflection-freien manuellen Weg. Tabelle der Options-Properties
+  um `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage`,
+  `AdditionalSensitiveKeys` erweitern. Neuer Hinweis-Block "Reading logs
+  while the server is running" mit `FileShare.ReadWrite`-Beispiel.
+- `CHANGELOG.md` (neu, Keep-a-Changelog-Format, Sektion `## [1.1.0]`)
+  listet die hinzugefügten Features, die gelockerte §6-Richtlinie, die
+  Migrations-Hinweise und das Datum 2026-08-17.
+- `samples/ManualToolCollectionServer/` (neu) — minimaler MCP-Server, der
+  seine Tools manuell in `McpServerOptions.ToolCollection` registriert
+  und `WithObservability` nutzt. Lauffähig per `dotnet run`.
 
-### 3.1 Erweiterung von `McpObservabilityOptions`
+**Richtlinien-Update**:
+- `McpObservabilityRichtlinien.mdc` §6: Klarstellung, dass
+  `McpObservabilityOptions`, `McpObservabilityExtensions`,
+  `IMcpObservabilityService` und `McpObservabilityTools` die einzigen
+  öffentlichen Typen sind. Datum, Begründung (AiNetLinter-Workarounds
+  ohne Reflection auflösen) und geprüfte Alternativen dokumentieren.
 
-Die Options-Klasse sollte konfigurierbar sein für Server-Namen, Severity-Stufen und Log-Steuerung:
+### Nice-to-Have (Zwischenspeicher — vor `status: ready` aufgelöst)
 
-```csharp
-namespace RalfHuesing.Mcp.Observability;
+Leer. Alle Audit-Punkte und vom Nutzer explizit gewünschten Features
+sind in Muss-Haven hochgestuft.
 
-public sealed class McpObservabilityOptions
-{
-    public bool Enabled { get; set; } = true;
-    public bool EnableToolCallLogging { get; set; } = true;
-    public bool EnableFeedbackTool { get; set; } = true;
-    public string? LogDirectory { get; set; }
+### Non-Goals (bewusst NICHT Teil davon)
 
-    /// <summary>
-    /// Expliziter Server-Name für Log-Pfade und Records.
-    /// Falls null, wird McpServerOptions.ServerInfo.Name oder EntryAssembly genutzt.
-    /// </summary>
-    public string? ServerName { get; set; }
+- **`IMcpObservabilityService.LogCustomRecord(...)`** — vom Audit
+  vorgeschlagen, aber **bewusst weggelassen**: würde die JSONL-
+  Schema-Invariante §5 aufweichen (`recordType` wäre nicht mehr hart
+  enumeriert). Konsumenten, die eigene Records schreiben wollen,
+  verwenden stattdessen `tool_call`-Records mit passendem `toolName`
+  (z. B. `"custom.startup"`).
+- **OpenTelemetry / Metrics / Traces** — explizit durch §2 verboten.
+- **Log-Rotation / Cleanup** — bleibt wie in v1.0.0: eine Datei pro
+  Prozess, keine Rotation. Konsumenten rotation selbst (oder via
+  externes Tool).
+- **Major-Bump v2.0** — alle Änderungen sind additiv, daher v1.1.0.
+- **Log-Reader-API** (Query, HTTP-Endpoint) — §2 verbietet es.
+- **Auto-Discovery von `IMcpObservabilityService` durch das SDK** — wäre
+  eine SDK-Erweiterung, nicht im Scope dieses Pakets.
 
-    /// <summary>
-    /// Explizite Server-Version für Records.
-    /// Falls null, wird McpServerOptions.ServerInfo.Version oder Assembly-Version genutzt.
-    /// </summary>
-    public string? ServerVersion { get; set; }
+## Zielplattformen / Technischer Rahmen
 
-    /// <summary>
-    /// Antwortnachricht für den Agenten nach erfolgreichem Feedback.
-    /// Default: "Feedback recorded. Thank you."
-    /// </summary>
-    public string FeedbackConfirmationMessage { get; set; } = "Feedback recorded. Thank you.";
+- **Laufzeit:** .NET 10, C# 14 (wie v1.0.0).
+- **MCP-SDK:** `ModelContextProtocol` 2.x stable (wie v1.0.0).
+- **DI:** `Microsoft.Extensions.Options` (für
+  `IPostConfigureOptions<McpServerOptions>`).
+- **JSON:** `System.Text.Json` (bereits verwendet, keine neue Dep).
+- **Tests:** xUnit v3 (wie v1.0.0). Integration-Tests via
+  `McpServerBuilder` (existierende `IntegrationTestBase.cs` wiederverwenden,
+  Pattern-Reuse).
+- **Keine neuen NuGet-Abhängigkeiten** — alle Erweiterungen nutzen
+  bereits referenzierte Pakete.
 
-    /// <summary>
-    /// Zusätzliche Keys, die bei der Argument-Sanitization geschwärzt werden sollen.
-    /// </summary>
-    public HashSet<string> AdditionalSensitiveKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-}
-```
+## Verworfene Alternativen
 
----
+- **Reflection-Helper im Konsumenten (AiNetLinter-Workaround):** Verworfen
+  für die Konzept-Zukunft — manuelle Reflection bricht beim ersten
+  Refactoring in `RalfHuesing.Mcp.Observability` und macht
+  AiNetLinter-Code unnötig kompliziert. Wird durch die public
+  `McpObservabilityTools.AddFeedbackTool`-Extension ersetzt.
+- **§6 strikt halten, Tool-Schatten nur intern fixen:** Verworfen — die
+  Diagnostik-Fähigkeit (`IMcpObservabilityService`) ist ein eigenständiges
+  Feature mit echtem Konsumenten-Mehrwert (z. B. für
+  `get_server_health`-Tools), nicht nur ein Implementierungsdetail.
+- **`IMcpObservabilityService.LogCustomRecord` mit beliebigem
+  `recordType`:** Verworfen — verletzt §5-Schema-Invariante. Stattdessen
+  Konsumenten auf `tool_call`-Records mit eigenem `toolName` verweisen.
+- **Breaking Change v2.0:** Verworfen — keine der Änderungen bricht
+  bestehende Konsumenten (alle Erweiterungen sind additiv oder rein
+  intern). Major-Bump wäre Image-Schaden ohne Mehrwert.
+- **Sample im selben Projekt statt `samples/ManualToolCollectionServer/`:**
+  Verworfen — bestehende Konvention in v1.0.0 ist ein Sample pro
+  Integrationsmuster. Konsistenz vor Bequemlichkeit.
+- **CHANGELOG aus Git-Commits generieren (`git-cliff` o. ä.):** Verworfen
+  — bringt Tool-Chain-Komplexität ohne spürbaren Mehrwert für ein
+  Paket mit <20 Commits. Manuelle CHANGELOG-Pflege reicht.
 
-### 3.2 Dual-Registration Support (DI + Manuelle ToolCollection)
+## Wo im Projekt
 
-Um Servern, die `options.ToolCollection` manuell befüllen, die nahtlose Integration zu ermöglichen, soll das Paket **zwei** Wege zur Registrierung anbieten:
+- `src/RalfHuesing.Mcp.Observability/McpObservabilityOptions.cs` —
+  erweitern (4 neue Properties, XML-Docs).
+- `src/RalfHuesing.Mcp.Observability/McpObservabilityExtensions.cs` —
+  `IPostConfigureOptions<McpServerOptions>` registrieren.
+- `src/RalfHuesing.Mcp.Observability/IMcpObservabilityService.cs` — **neu**,
+  public interface.
+- `src/RalfHuesing.Mcp.Observability/McpObservabilityTools.cs` — **neu**,
+  public static class.
+- `src/RalfHuesing.Mcp.Observability/Internal/ArgumentSanitizer.cs` —
+  Signatur ändern, alle Dict-Typen normalisieren.
+- `src/RalfHuesing.Mcp.Observability/Internal/ToolCallLoggingHandler.cs` —
+  Cast entfernen, `Sanitize(object?)` aufrufen.
+- `src/RalfHuesing.Mcp.Observability/Internal/ObservabilityContext.cs` —
+  `IMcpObservabilityService` implementieren, ServerName-Override-Logik.
+- `src/RalfHuesing.Mcp.Observability/Internal/JsonlLogWriter.cs` —
+  `IAsyncDisposable` + `FlushAsync`.
+- `src/RalfHuesing.Mcp.Observability/Internal/LogRecords.cs` —
+  `ToolCallRecord.Arguments` Typ-Wechsel, JSON-Output invariant.
+- `tests/RalfHuesing.Mcp.Observability.Tests/Internal/ArgumentSanitizerTests.cs` —
+  erweitern (Dictionary, JsonObject).
+- `tests/RalfHuesing.Mcp.Observability.Tests/Integration/McpServerOptionsToolCollectionTests.cs` — **neu**.
+- `tests/RalfHuesing.Mcp.Observability.Tests/Integration/McpOptionsServerNameOverrideTests.cs` — **neu**.
+- `tests/RalfHuesing.Mcp.Observability.Tests/Internal/JsonlLogWriterFlushTests.cs` — **neu**.
+- `tests/RalfHuesing.Mcp.Observability.Tests/Internal/ToolCallRecordSchemaStabilityTests.cs` — **neu**.
+- `samples/ManualToolCollectionServer/` — **neu**, parallel zu
+  `samples/MinimalMcpServerWithObservability/`.
+- `README.md` — Options-Tabelle, Dual-Use-Sektion, File-Locking-Hinweis.
+- `CHANGELOG.md` — **neu**.
+- `.agents/rules/McpObservabilityRichtlinien.mdc` §6 — lockern, Begründung dokumentieren.
+- `Directory.Build.props` / `RalfHuesing.Mcp.Observability.csproj` — keine Änderung
+  erwartet (Zero-Warning + bestehende Pakete reichen).
 
-#### Weg A: Automatischer DI-Weg (Bestehend)
-```csharp
-builder.WithObservability(options);
-```
-*Verbesserung:* Wenn `options.ToolCollection` später belegt wird, soll das Paket zusätzlich einen `IPostConfigureOptions<McpServerOptions>` registrieren, der prüft, ob `ToolCollection` gesetzt ist, und falls ja, das Feedback-Tool dort automatisch anfügt!
+## Entdeckte Mängel/Redundanzen
 
-#### Weg B: Öffentliche Tool-Factory für manuelle Collections (Neu)
-```csharp
-public static class McpObservabilityTools
-{
-    /// <summary>
-    /// Erstellt das standardisierte report_observability_feedback Tool als McpServerTool.
-    /// Zur direkten Registrierung in manuellen ToolCollections.
-    /// </summary>
-    public static McpServerTool CreateFeedbackTool(
-        IServiceProvider services,
-        McpServerToolCreateOptions? createOptions = null);
+- **§6 verbietet die geplanten public-Typen**
+  - **Gefunden:** `McpObservabilityRichtlinien.mdc` §6 schreibt fest:
+    "Nur `McpObservabilityOptions` und `McpObservabilityExtensions` sind
+    public."
+  - **Bezug:** Direkter Verstoß durch die geplanten
+    `IMcpObservabilityService` + `McpObservabilityTools`.
+  - **Vorschlag:** §6 in der Richtlinie explizit für v1.1 lockern, Datum
+    + Begründung + geprüfte Alternativen dokumentieren.
+  - **Entscheidung:** übernommen (User-Bestätigung 2026-08-17).
 
-    /// <summary>
-    /// Hängt das Feedback-Tool direkt an eine bestehende ToolCollection an.
-    /// </summary>
-    public static void AddFeedbackTool(
-        this McpServerPrimitiveCollection<McpServerTool> tools,
-        IServiceProvider services);
-}
-```
+- **`ToolCallRecord.Arguments` ist hart auf `IReadOnlyDictionary<string, JsonElement>` getypt**
+  - **Gefunden:** `src/.../Internal/LogRecords.cs:18` (C#-Typ), genutzt
+    von `ToolCallLoggingHandler.cs:62` (Cast-Stelle).
+  - **Bezug:** Audit-Punkt 2.3 + §5-Schema-Invariante (JSON muss stabil
+    bleiben).
+  - **Vorschlag:** Interner Typ-Wechsel auf
+    `IReadOnlyDictionary<string, object?>?`; Serialisierung erzwingt
+    `JsonElement`-Werte → identisches JSON. Schema-Invariante bleibt
+    gewahrt, Schema-Version unverändert bei `1`.
+  - **Entscheidung:** übernommen (siehe Muss-Haven "JSONL-Schema-Stabilität").
 
----
+- **`JsonlLogWriter` blockiert Standard-Reader**
+  - **Gefunden:** `src/.../Internal/JsonlLogWriter.cs:31` öffnet mit
+    `FileShare.ReadWrite`. `File.ReadAllLines` schlägt fehl.
+  - **Bezug:** Audit-Punkt 2.4; §8 (Doku-Objektivität, kein erwähntes
+    Verhalten ohne Doku).
+  - **Vorschlag:** README-Hinweis hinzufügen + `IAsyncDisposable` +
+    `FlushAsync` für sauberen Lifecycle.
+  - **Entscheidung:** übernommen (User-Bestätigung 2026-08-17).
 
-### 3.3 Robuste Argument-Sanitization
+- **`ArgumentSanitizer.SanitizeElement` ist ineffizient** (Mitdenken-Fund)
+  - **Gefunden:** `src/.../Internal/ArgumentSanitizer.cs:50-64` nutzt
+    `JsonNode.Parse(element.GetRawText())` + `JsonSerializer.SerializeToElement(node)`
+    für verschachtelte Elemente.
+  - **Bezug:** Kein konkreter Regel-Verstoß, aber unnötige
+    Allokation/Round-Trip-Serialisierung.
+  - **Vorschlag:** Bei der Generalisierung auf `object?` einen direkten
+    Pfad ohne `JsonNode.Parse` anstreben (Traversierung direkt auf
+    `JsonElement`).
+  - **Entscheidung:** übernommen, aber nur als Optimierung im selben
+    Step — kein eigener Step nötig.
 
-`ArgumentSanitizer` soll universell mit allen JSON-/Dictionary-Typen umgehen können:
+## Wie (grober Ansatz)
 
-```csharp
-public static class ArgumentSanitizer
-{
-    public static IReadOnlyDictionary<string, object?>? Sanitize(object? rawArguments, IEnumerable<string>? additionalKeys = null)
-    {
-        if (rawArguments is null) return null;
+Drift-Loop-Planer wird daraus ~6-8 Steps ableiten. Reihenfolge hier nur
+als Anker, nicht bindend:
 
-        // Unterstützt:
-        // 1. IReadOnlyDictionary<string, JsonElement>
-        // 2. IReadOnlyDictionary<string, object?>
-        // 3. JsonObject
-        // 4. Beliebige IDictionary
-        // Rekursive Bereinigung sensibler Keys -> "***REDACTED***"
-    }
-}
-```
+1. **Options erweitern + ObservabilityContext-Override-Logik** —
+   `ServerName`/`ServerVersion`/`FeedbackConfirmationMessage`/
+   `AdditionalSensitiveKeys` Properties; Auflösungsreihenfolge
+   dokumentiert.
+2. **ArgumentSanitizer generalisieren + LogRecord-Type-Wechsel** —
+   `Sanitize(object?)`, alle Dict-Typen; `ToolCallRecord.Arguments` auf
+   `IReadOnlyDictionary<string, object?>?`; JSON-Output-Invariante per
+   Test sichern.
+3. **IMcpObservabilityService + ObservabilityContext-Implementierung** —
+   public Interface, DI-Registrierung.
+4. **McpObservabilityTools public** — `CreateFeedbackTool` +
+   `AddFeedbackTool`-Extension.
+5. **Tool-Schatten-Fix via IPostConfigureOptions** — in
+   `WithObservability` registrieren; prüft nachträglich gesetzte
+   `McpServerOptions.ToolCollection`.
+6. **JsonlLogWriter IAsyncDisposable + FlushAsync** — neue Methoden,
+   Tests.
+7. **Integration-Tests + Sample** — ToolCollection-Test,
+   ServerName-Override-Test, FlushTest,
+   `samples/ManualToolCollectionServer/`.
+8. **README + CHANGELOG + Richtlinien-Update** — Doku-Sync, §6 lockern.
 
----
+Jeder Step endet mit Coder-Commit + Doku-Commit (sofern Doku betroffen)
++ Kritiker-Audit. Convention: Conventional Commits, deutsch, imperativ
+(siehe Richtlinie §10).
 
-### 3.4 Öffentlicher `IObservabilityService` für Diagnostik
+## Definition of Done / Erfolgskriterien
 
-```csharp
-namespace RalfHuesing.Mcp.Observability;
+**Funktional:**
+- `WithObservability()` registriert das Feedback-Tool auch dann, wenn
+  der Konsument `McpServerOptions.ToolCollection` manuell befüllt —
+  verifiziert per Integration-Test.
+- `ArgumentSanitizer.Sanitize` verarbeitet `JsonObject`,
+  `Dictionary<string, object?>`, `IReadOnlyDictionary<string, JsonElement>`
+  und liefert in allen drei Fällen denselben JSONL-`arguments`-Output —
+  verifiziert per Unit-Test.
+- `McpObservabilityOptions.ServerName = "X"` schlägt sich in jedem
+  geschriebenen JSONL-Record als `serverName: "X"` nieder — verifiziert
+  per Integration-Test.
+- `IMcpObservabilityService` ist im DI-Container als Singleton
+  auflösbar; `CurrentLogFilePath` zeigt auf die tatsächlich geöffnete
+  Datei.
+- `JsonlLogWriter.FlushAsync()` schreibt ausstehende Zeilen synchron;
+  `DisposeAsync()` schließt sauber.
+- Konsumenten können das Feedback-Tool **ohne Reflection** in eine
+  manuelle `ToolCollection` einhängen via
+  `collection.AddFeedbackTool(services)`.
 
-public interface IMcpObservabilityService
-{
-    bool IsEnabled { get; }
-    string ServerName { get; }
-    string? CurrentLogFilePath { get; }
-    int ProcessId { get; }
-    string InstanceId { get; }
+**Schema-Stabilität:**
+- `ToolCallRecord`-JSONL-Output vor und nach v1.1.0 ist byte-identisch
+  (gleiche Felder, gleiche Reihenfolge, gleiche Wert-Repräsentation).
+  Verifiziert per `ToolCallRecordSchemaStabilityTests`.
+- `schemaVersion` bleibt `1`. `recordType`-Enum bleibt
+  `"tool_call" | "feedback"`.
 
-    void LogCustomRecord(string recordType, object payload);
-    void Flush();
-}
-```
-Dieser Service wird als Singleton im DI-Container registriert (`services.AddSingleton<IMcpObservabilityService, ...>()`).
+**Qualität:**
+- `dotnet build` mit `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`
+  ist grün.
+- `dotnet test` ist grün: alle bestehenden Tests + 4 neue Tests.
+- `AiNetLinter` (Referenz-Integration) kann auf die neuen public APIs
+  umgestellt werden und entfernt seine Reflection-Workarounds — Smoke-
+  Test dokumentiert in `task-summary.md`.
 
----
+**Dokumentation:**
+- `README.md` dokumentiert beide Integrationswege (Auto-DI und manuelle
+  `ToolCollection`) mit Copy-Paste-Codebeispielen.
+- `README.md` Options-Tabelle enthält die 4 neuen Properties.
+- `README.md` enthält den `FileShare.ReadWrite`-Hinweis für Live-Reader.
+- `CHANGELOG.md` mit Sektion `## [1.1.0] - 2026-08-17` ist vorhanden.
+- `.agents/rules/McpObservabilityRichtlinien.mdc` §6 ist gelockert und
+  enthält Begründung + Datum.
 
-## 4. Konkrete Handlungsanweisungen für das umsetzende LLM
+**Versionierung & Veröffentlichung:**
+- Versionsnummer in `RalfHuesing.Mcp.Observability.csproj` auf `1.1.0`.
+- Kein v2.0-Bump, da alle Änderungen additiv sind.
+- Git-Tag `v1.1.0` nach Drift-Loop-Abschluss (vom User manuell oder
+  via bestehendem `scripts/create-release.ps1`).
 
-Liebes bearbeitendes LLM, führe bitte folgende Schritte im Repository `C:\Daten\Entwicklung\Ralf\RalfHuesing.Mcp.Observability` durch:
+## Offene Punkte
 
-### Schritt 1: `McpObservabilityOptions.cs` erweitern
-- Füge `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage` und `AdditionalSensitiveKeys` hinzu.
-- XML-Dokumentation pflegen.
-
-### Schritt 2: `ArgumentSanitizer.cs` robust machen
-- Entferne die harte Bindung an `IReadOnlyDictionary<string, JsonElement>`.
-- Akzeptiere `object?` oder `IReadOnlyDictionary<string, object?>` / `JsonElement` und normalisiere zu einem serialisierbaren JSON-Baum mit geschwärzten Keys.
-
-### Schritt 3: Öffentliche Tool-Factory `McpObservabilityTools.cs` bereitstellen
-- Erstelle die Klasse `McpObservabilityTools` mit `CreateFeedbackTool(...)` und `AddFeedbackTool(...)`.
-- Mache `FeedbackTools.ReportFeedback` öffentlich oder delegate an die interne Logik, sodass sowohl Reflection-freie manuelle Registrierung als auch automatische DI-Registrierung funktioniert.
-
-### Schritt 4: `IPostConfigureOptions<McpServerOptions>` einhängen
-- In `McpObservabilityExtensions.WithObservability`: Registriere ein `IPostConfigureOptions<McpServerOptions>`, das nach Abschluss aller Konfigurationen prüft:
-  ```csharp
-  if (options.EnableFeedbackTool && serverOptions.ToolCollection is not null)
-  {
-      if (!serverOptions.ToolCollection.Any(t => t.ProtocolTool.Name == "report_observability_feedback"))
-      {
-          serverOptions.ToolCollection.AddFeedbackTool(serviceProvider);
-      }
-  }
-  ```
-  *Dadurch funktioniert `WithObservability()` magisch immer, egal ob `builder.WithTools()` oder `serverOptions.ToolCollection` genutzt wird!*
-
-### Schritt 5: `IMcpObservabilityService` & Status-Exposition
-- Schnittstelle `IMcpObservabilityService` definieren und `ObservabilityContext` diese implementieren lassen.
-- Im DI-Container als Singleton registrieren.
-
-### Schritt 6: Tests ergänzen & `README.md` aktualisieren
-1. Test für `McpServerOptions.ToolCollection` (Verifizieren, dass `report_observability_feedback` auch bei manueller ToolCollection vorhanden ist).
-2. Test für verschiedene Argument-Typen (`JsonObject`, `Dictionary<string, object?>`, `JsonElement`).
-3. Test für `ServerName`-Override in `McpObservabilityOptions`.
-4. `README.md` aktualisieren: Dual-Use-Dokumentation (Automatischer DI-Server vs. manueller `ToolCollection`-Server) mit Copy-Paste-Codebeispielen.
-
----
-
-## 5. Fazit
-
-Mit diesen Anpassungen wird `RalfHuesing.Mcp.Observability` von einem guten "Happy-Path-DI"-Paket zu einer **extrem robusten, universal kompatiblen Enterprise-Observability-Bibliothek** für jedes MCP-Server-Setup in .NET.
+Keine. Konzept ist bereit für die Übergabe an
+`../drift-loop/orchestrator.md`.
