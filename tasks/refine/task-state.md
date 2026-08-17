@@ -2,10 +2,9 @@
 status: executing
 task: refine
 started_at: 2026-08-17T22:39:30+02:00
-last_updated: 2026-08-17T22:59:30+02:00
+last_updated: 2026-08-17T23:03:00+02:00
 total_steps: 1
 rules_dir: .agents/rules
-total_steps: 0
 current_step: step-002
 ---
 
@@ -20,13 +19,13 @@ current_step: step-002
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T22:39:30+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T22:39:30+02:00
+- **Zuletzt aktualisiert:** 2026-08-17T23:03:00+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
-| step-001 | EPIC-01 | done (pending audit) | Options-Erweiterung, Override-Kette und IMcpObservabilityService | - | e318710 / 305a3c4 | - | e318710 (code), 305a3c4 (docs) |
+| step-001 | EPIC-01 | done | Options-Erweiterung, Override-Kette und IMcpObservabilityService | - | e318710 | approved (`305a3c4`+`ea478a7`+`fe13039`) | e318710 |
 
 ## Config (optional)
 

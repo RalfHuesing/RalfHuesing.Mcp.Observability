@@ -60,7 +60,7 @@ Versionsnummer setzt `scripts/create-release.ps1`.
 
 ## Epics
 
-- [ ] **EPIC-01: Options-Erweiterung & Diagnostic-Service** _(in Arbeit → step-001)_ — `McpObservabilityOptions`
+- [x] **EPIC-01: Options-Erweiterung & Diagnostic-Service** _(abgeschlossen via step-001 → `e318710` — approved)_ — `McpObservabilityOptions`
       um `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage`,
       `AdditionalSensitiveKeys` erweitern; in `ObservabilityContext` die
       Override-Kette (Options → `McpServerOptions.ServerInfo` → EntryAssembly
