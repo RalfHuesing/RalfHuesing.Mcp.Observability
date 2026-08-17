@@ -1,5 +1,5 @@
 ---
-status: executing
+status: done
 task: refine
 started_at: 2026-08-17T22:39:30+02:00
 last_updated: 2026-08-18T01:10:00+02:00
