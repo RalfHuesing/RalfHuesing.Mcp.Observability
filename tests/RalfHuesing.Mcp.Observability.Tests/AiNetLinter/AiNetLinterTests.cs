@@ -137,7 +137,7 @@ public sealed class AiNetLinterTests
         var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
         while (currentDir != null)
         {
-            if (currentDir.GetFiles("RalfHuesing.Mcp.Observability.sln").Length > 0)
+            if (currentDir.GetFiles("RalfHuesing.Mcp.Observability.slnx").Length > 0)
             {
                 return currentDir.FullName;
             }
@@ -146,6 +146,6 @@ public sealed class AiNetLinterTests
         }
 
         throw new DirectoryNotFoundException(
-            "Solution root folder with RalfHuesing.Mcp.Observability.sln not found.");
+            "Solution root folder with RalfHuesing.Mcp.Observability.slnx not found.");
     }
 }
