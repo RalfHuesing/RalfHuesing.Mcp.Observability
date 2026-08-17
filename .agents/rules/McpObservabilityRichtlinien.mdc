@@ -70,6 +70,9 @@ Der resident geladene MCP-Server `ainetlinter` greift direkt auf den Roslyn-Symb
 - **Pre-Commit Quality-Gate (`safeguard`):** Vor jedem Commit `safeguard` ausführen. Der Mindest-Score von 8.0 muss eingehalten werden; Top-Violations sind zu beheben.
 - **Regelverstöße prüfen (`get_violations`):** Nach Code-Änderungen aufrufen, um Linter-Regeln (gemäß `rules.json` / `AiNetLinter.mdc`) live zu verifizieren.
 - **Sufficiency-Doctrine:** Liefert ein Linter-Tool ein vollständiges Ergebnis (Hinweis: *"Diese Daten sind vollständig ... kein zusätzliches Read/Grep nötig"*), darf dieses **nicht** redundant per `view_file` oder `grep_search` gegengeprüft werden.
+- **Verbot von In-Code-Suppressions (`ainetlinter-disable` / `#pragma`):** Es ist streng verboten, Linter-Warnungen (z. B. `DuplicateCode`, `MethodLength`, `BanPublicNestedTypes`) durch In-Code-Suppressions (`// ainetlinter-disable`, `#pragma warning disable`, `[SuppressMessage]`) stummzuschalten, nur um einen grünen Build/Testlauf zu erzwingen.
+  - **Offensichtliche Fixes:** Offensichtliche, lokal begrenzte Ursachen (z. B. Duplikate in eine gemeinsame Basis-/Hilfsklasse extrahieren, verschachtelte Typen auf Top-Level ziehen, lange Methoden in private Helper zerlegen) **müssen direkt architektonisch sauber behoben werden**.
+  - **Nicht-triviale / uneindeutige Fälle:** Berührt ein Linter-Finding mehrere Module, ändert es bestehende Architekturgrenzen oder gibt es mehrere plausible Lösungswege: **Nicht eigenmächtig refactoren oder unterdrücken, sondern stoppen und den Nutzer fragen.**
 
 ### 4.5 Anpassung von Linter-Regeln & Begründungspflicht
 - **Konfigurationsdatei:** Die Linter-Regeln liegen in `tests/RalfHuesing.Mcp.Observability.Tests/AiNetLinter/rules/RalfHuesing.Mcp.Observability.rules.json`.
