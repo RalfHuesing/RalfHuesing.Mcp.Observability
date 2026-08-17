@@ -1,0 +1,51 @@
+using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Server;
+using RalfHuesing.Mcp.Observability.Internal;
+
+namespace RalfHuesing.Mcp.Observability;
+
+/// <summary>
+/// Provides the <see cref="WithObservability"/> extension method for integrating
+/// observability into an MCP server with a single line of code.
+/// </summary>
+public static class McpObservabilityExtensions
+{
+    /// <summary>
+    /// Activates tool-call logging and the feedback tool for this MCP server.
+    /// When <paramref name="options"/> is <c>null</c> or <see cref="McpObservabilityOptions.Enabled"/>
+    /// is <c>false</c>, this method is a no-op.
+    /// </summary>
+    /// <param name="builder">The MCP server builder to extend.</param>
+    /// <param name="options">
+    /// Optional configuration. Pass <c>null</c> to use all defaults (everything enabled,
+    /// log directory <c>%LOCALAPPDATA%\RalfHuesing\McpObservability\</c>).
+    /// </param>
+    /// <returns>The same <paramref name="builder"/> for chaining.</returns>
+    public static IMcpServerBuilder WithObservability(
+        this IMcpServerBuilder builder,
+        McpObservabilityOptions? options = null)
+    {
+        var resolvedOptions = options ?? new McpObservabilityOptions();
+
+        if (!resolvedOptions.Enabled)
+        {
+            return builder;
+        }
+
+        builder.Services.AddSingleton(resolvedOptions);
+        builder.Services.AddSingleton<ObservabilityContext>();
+
+        if (resolvedOptions.EnableToolCallLogging)
+        {
+            builder.Services.AddSingleton<JsonlLogWriter>();
+            ToolCallLoggingHandler.Register(builder);
+        }
+
+        if (resolvedOptions.EnableFeedbackTool)
+        {
+            builder.WithTools<FeedbackTools>();
+        }
+
+        return builder;
+    }
+}

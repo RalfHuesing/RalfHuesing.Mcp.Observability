@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RalfHuesing.Mcp.Observability/RalfHuesing.Mcp.Observability.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RalfHuesing.Mcp.Observability.Tests/RalfHuesing.Mcp.Observability.Tests.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/MinimalMcpServerWithObservability/MinimalMcpServerWithObservability.csproj" />
+  </Folder>
+</Solution>

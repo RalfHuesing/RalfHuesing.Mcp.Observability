@@ -1,0 +1,365 @@
+{
+  "Global": {
+    "EnforceSealedClasses": true,
+    "AllowUnsealedPartialClasses": false,
+    "AllowDynamic": false,
+    "AllowOutParameters": false,
+    "EnforceValueObjectContracts": true,
+    "EnableTestSentinel": true,
+    "EnforcePascalCase": true,
+    "EnforceAsciiIdentifiers": true,
+    "EnforceXmlDocumentation": false,
+    "EnforceSemanticNaming": true,
+    "EnforceNullableEnable": true,
+    "EnforceNoSilentCatch": true,
+    "AllowTryPatternOutParameters": true,
+    "AllowCancellationShutdownCatch": true,
+    "AllowOutParametersInPrivateMethods": true,
+    "SemanticNamingExemptMethodNames": [
+      "Equals",
+      "CompareTo",
+      "GetHashCode",
+      "Dispose"
+    ],
+    "SemanticNamingAllowSubstringOfMethodName": true,
+    "AllowedSilentCatchExceptionTypes": [
+      "ObjectDisposedException"
+    ],
+    "EnforceMinimalApiAsParameters": false,
+    "EnforceResultPatternOverExceptions": false,
+    "ResultPatternAllowThrowInNamespaceSuffixes": [],
+    "ResultPatternAllowCatchRethrow": true,
+    "EnforceExplicitStateImmutability": false,
+    "AllowedExceptions": [
+      "ArgumentException",
+      "ArgumentNullException",
+      "ArgumentOutOfRangeException",
+      "InvalidOperationException",
+      "NotSupportedException",
+      "KeyNotFoundException",
+      "IndexOutOfRangeException",
+      "TimeoutException",
+      "ObjectDisposedException",
+      "NotImplementedException",
+      "DirectoryNotFoundException",
+      "IOException"
+    ],
+    "PreventContextDependentOverloads": false,
+    "EnforceNamespaceDirectoryMapping": true,
+    "NamespaceDirectoryMappingMode": "suffix-match",
+    "NamespaceDirectoryMappingIgnorePathSegments": [
+      "src",
+      "tests",
+      "samples"
+    ],
+    "NamespaceDirectoryMappingRequiredTrailingSegments": 2,
+    "DetectAndBanPhantomDependencies": true,
+    "BanPublicNestedTypes": true,
+    "BanPublicNestedTypesAllowPrivate": true,
+    "AvoidExcessiveMiddleMen": true,
+    "MaxMiddleManForwardingRatio": 0.6,
+    "MiddleManMinMemberCount": 5,
+    "MiddleManIncludePrivateMembers": false,
+    "MiddleManExemptSuffixes": [
+      "Extensions",
+      "Proxy",
+      "Adapter",
+      "Facade"
+    ],
+    "MiddleManExemptBaseTypes": [],
+    "ImmutabilityExemptSuffixes": [
+      "Options",
+      "Settings",
+      "Config"
+    ],
+    "ImmutabilityExemptPatterns": [],
+    "AllowedEmptyReads": false,
+    "SealedClassExemptSuffixes": [
+      "Base",
+      "Foundation"
+    ],
+    "ImmutabilityExemptBaseTypes": [],
+    "ImmutabilityAllowPrivateBackingFields": true,
+    "EnablePerformanceProfiling": false,
+    "BanAsyncVoid": true,
+    "AsyncVoidAllowEventHandlers": true,
+    "BanBlockingTaskAccess": true,
+    "BanBlockingTaskAccessAllowInMain": true,
+    "BanBlockingTaskAccessAllowInTests": false,
+    "EnableDuplicateCodeCheck": true,
+    "DuplicateCodeMinTokens": 30,
+    "DuplicateCodeNgramSize": 5,
+    "DuplicateCodeMinSharedNgrams": 3,
+    "DuplicateCodeExactThreshold": 0.95,
+    "DuplicateCodeNearThreshold": 0.8,
+    "DuplicateCodeFuzzyThreshold": 0.65,
+    "DuplicateCodeNormalizeIdentifiers": false,
+    "DuplicateCodeMaxResults": 20
+  },
+  "Metrics": {
+    "MaxLineCount": 300,
+    "MaxMethodParameterCount": 4,
+    "MaxMethodParameterCountInTestFiles": 6,
+    "MethodParameterCountIgnoreTypeNames": [
+      "CancellationToken"
+    ],
+    "MethodParameterCountIgnoreTypePrefixes": [],
+    "MaxMethodParameterCountAllowPrivate": false,
+    "MaxMethodParameterCountForNonPublic": 8,
+    "MaxMethodLineCount": 60,
+    "MaxCyclomaticComplexity": 10,
+    "MaxCognitiveComplexity": 12,
+    "MaxInheritanceDepth": 3,
+    "MinCognitiveComplexityForTest": 5,
+    "AggregatePartialClassLineCount": false,
+    "MaxMethodOverloads": 4,
+    "MaxConstructorDependencies": 4,
+    "MaxDirectoryDepth": 4,
+    "InheritanceDepthFrameworkPrefixes": [],
+    "ConstructorDependencyIgnoreTypePrefixes": [
+      "ILogger",
+      "IOptions",
+      "IOptionsSnapshot",
+      "IOptionsMonitor"
+    ],
+    "ConstructorDependencyExemptClassSuffixes": [
+      "Exception"
+    ],
+    "MaxAIContextFootprint": 2000,
+    "FootprintIgnoreNamespacePrefixes": [],
+    "FootprintIgnoreTypeNames": [],
+    "ComplexityNearMissTolerance": 1,
+    "ExcludeSwitchDispatcherCases": true,
+    "SwitchDispatcherMaxCaseBodyLines": 3,
+    "ExcludeNullCoalescingInitializerComplexity": true,
+    "NullCoalescingInitializerMaxNonCoalescingRatio": 0,
+    "MaxSwitchArms": 10,
+    "MaxSwitchArmsExcludeDispatcher": true,
+    "MaxSwitchArmsExemptTypes": [],
+    "MaxBoolParameterCount": 1,
+    "MaxBoolParameterCountAllowPrivate": true,
+    "MaxBoolParameterCountExemptMethodPrefixes": [
+      "Try"
+    ],
+    "MaxDirectoryChildren": 0,
+    "MaxDirectoryChildrenExemptNames": [
+      "obj",
+      "bin",
+      ".git",
+      "output"
+    ],
+    "MaxPartialClassFiles": 2,
+    "MaxPartialClassFilesExemptTypes": [],
+    "MaxPublicMembersPerType": 12,
+    "MaxPublicMembersPerTypeExemptSuffixes": [
+      "Extensions",
+      "Constants",
+      "Options"
+    ],
+    "MaxPublicMembersPerTypeApplyToTestFiles": false,
+    "MaxLinqChainLength": 0,
+    "LinqMethodNames": [
+      "Where",
+      "Select",
+      "SelectMany",
+      "GroupBy",
+      "GroupJoin",
+      "Join",
+      "OrderBy",
+      "OrderByDescending",
+      "ThenBy",
+      "ThenByDescending",
+      "Take",
+      "TakeWhile",
+      "Skip",
+      "SkipWhile",
+      "First",
+      "FirstOrDefault",
+      "Last",
+      "LastOrDefault",
+      "Single",
+      "SingleOrDefault",
+      "Count",
+      "LongCount",
+      "Any",
+      "All",
+      "Distinct",
+      "DistinctBy",
+      "Union",
+      "UnionBy",
+      "Intersect",
+      "IntersectBy",
+      "Except",
+      "ExceptBy",
+      "Aggregate",
+      "Sum",
+      "Min",
+      "Max",
+      "Average",
+      "MinBy",
+      "MaxBy",
+      "ToList",
+      "ToArray",
+      "ToDictionary",
+      "ToHashSet",
+      "ToLookup",
+      "Cast",
+      "OfType",
+      "Append",
+      "Prepend",
+      "Reverse",
+      "Zip",
+      "Chunk",
+      "Flatten"
+    ],
+    "CompoundSuppressions": [
+      {
+        "TargetRule": "MaxMethodLineCount",
+        "WhenAllOf": [
+          {
+            "Metric": "CyclomaticComplexity",
+            "AtMost": 3
+          },
+          {
+            "Metric": "CognitiveComplexity",
+            "AtMost": 5
+          }
+        ],
+        "RelaxedLimit": 120,
+        "SeverityOverride": "warning",
+        "Reason": "Flat initialization and builder methods are semantically simple; LOC at CC\u22643 is not correlated with defect density (Palomba et al., 2018)."
+      }
+    ]
+  },
+  "TestSentinel": {
+    "ClassNamePatterns": [
+      "{Name}Tests",
+      "{Name}Test",
+      "{Name}IntegrationTests",
+      "{Name}*Tests"
+    ],
+    "RecognizeTypeofReference": true,
+    "RecognizeCoversComment": true,
+    "ExemptClassNameSuffixes": [
+      "Extensions",
+      "Constants",
+      "Options"
+    ],
+    "ExemptWhenInheritsFrom": [],
+    "ExemptStaticClasses": true,
+    "TestProjectNameSuffixes": [
+      "Tests",
+      "Test",
+      "IntegrationTests",
+      "Specs",
+      "Spec"
+    ]
+  },
+  "UiSeparation": {
+    "BlazorRequireCodeBehind": false,
+    "BlazorRequireCssIsolation": false,
+    "WpfRequireMinimalCodeBehind": false,
+    "WpfCodeBehindBaseTypes": [],
+    "BlazorExcludeFileNames": [],
+    "WpfExcludeClassNames": [],
+    "BlazorCssIsolationOnlyWhenStylesNeeded": false
+  },
+  "FileFilters": {
+    "ExcludeFilePatterns": [
+      "*.designer.cs",
+      "*.g.cs",
+      "*.generated.cs",
+      "AssemblyInfo.cs",
+      "*.AssemblyAttributes.cs"
+    ],
+    "ExcludeDirectoryPatterns": [
+      "obj/",
+      "bin/"
+    ],
+    "SkipGeneratedCodeAttribute": true
+  },
+  "Web": {
+    "IsEnabled": false,
+    "Css": {
+      "MaxCssLineCount": 300,
+      "PreferScopedCss": true,
+      "PreferScopedCssMinRuleCount": 5,
+      "MaxCssSelectorComplexity": 3,
+      "ExemptPaths": [
+        "**/wwwroot/lib/**",
+        "**/node_modules/**",
+        "**/*.min.css"
+      ]
+    },
+    "Js": {
+      "MaxJsLineCount": 150,
+      "EnforceJsModules": true,
+      "ExemptPaths": [
+        "**/wwwroot/lib/**",
+        "**/node_modules/**",
+        "**/*.min.js"
+      ]
+    },
+    "Razor": {
+      "MaxRazorLineCount": 300,
+      "MaxRazorCodeBlockLines": 20,
+      "MaxMarkupNestingDepth": 6,
+      "BanInlineEventLambdas": true,
+      "MaxControlFlowBlocks": 8,
+      "MaxForeachNestingDepth": 2,
+      "MaxComponentParameterCount": 10,
+      "BanInlineTernaryInAttributes": true
+    }
+  },
+  "RuleMetadata": {
+    "MaxLineCount": {
+      "Severity": "error",
+      "Intent": "agent-context"
+    },
+    "MaxCognitiveComplexity": {
+      "Severity": "error",
+      "Intent": "agent-context"
+    },
+    "AllowOutParameters": {
+      "Severity": "warning",
+      "Intent": "csharp-idiom"
+    },
+    "StaticTestSentinel": {
+      "Severity": "warning",
+      "Intent": "test-coverage"
+    },
+    "EnforceNoSilentCatch": {
+      "Severity": "error",
+      "Intent": "agent-resilience"
+    },
+    "BanPublicNestedTypes": {
+      "Severity": "error",
+      "Intent": "agent-context"
+    }
+  },
+  "ForbiddenNamespaceDependencies": [],
+  "ProjectOverrides": {
+    "*.Tests": {
+      "Global": {
+        "EnforceSealedClasses": false
+      },
+      "Metrics": {
+        "MaxMethodLineCount": 120,
+        "MaxPublicMembersPerTypeExemptSuffixes": [
+          "Extensions",
+          "Constants",
+          "Options",
+          "Tests",
+          "Test"
+        ]
+      }
+    }
+  },
+  "PathOverrides": {
+    "src/RalfHuesing.Mcp.Observability/Internal/FeedbackTools.cs": {
+      "Metrics": {
+        "MaxMethodParameterCount": 10
+      }
+    }
+  }
+}
