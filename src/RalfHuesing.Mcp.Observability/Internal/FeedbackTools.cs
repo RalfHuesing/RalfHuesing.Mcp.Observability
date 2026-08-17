@@ -18,7 +18,7 @@ internal sealed class FeedbackTools
         "or when a needed capability is missing. " +
         "After reporting, continue with the best available workaround.")]
     internal static string ReportFeedback(
-        [FromKeyedServices("mcp")] IServiceProvider? services,
+        IServiceProvider? services,
         [Description("Type of feedback: 'issue' or 'feature_request'.")] string feedbackType,
         [Description("Short, clear title (max 120 characters).")] string title,
         [Description("Detailed description of what happened or what is missing.")] string description,

@@ -35,9 +35,13 @@ public static class McpObservabilityExtensions
         builder.Services.AddSingleton(resolvedOptions);
         builder.Services.AddSingleton<ObservabilityContext>();
 
-        if (resolvedOptions.EnableToolCallLogging)
+        if (resolvedOptions.EnableToolCallLogging || resolvedOptions.EnableFeedbackTool)
         {
             builder.Services.AddSingleton<JsonlLogWriter>();
+        }
+
+        if (resolvedOptions.EnableToolCallLogging)
+        {
             ToolCallLoggingHandler.Register(builder);
         }
 

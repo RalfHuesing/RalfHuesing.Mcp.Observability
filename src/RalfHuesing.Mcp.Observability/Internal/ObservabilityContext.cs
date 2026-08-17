@@ -16,7 +16,7 @@ internal sealed class ObservabilityContext
     internal string InstanceId { get; }
     internal McpObservabilityOptions Options { get; }
 
-    internal ObservabilityContext(McpObservabilityOptions options, IOptions<McpServerOptions>? serverOptions = null)
+    public ObservabilityContext(McpObservabilityOptions options, IOptions<McpServerOptions>? serverOptions = null)
     {
         Options = options;
         ProcessId = Environment.ProcessId;

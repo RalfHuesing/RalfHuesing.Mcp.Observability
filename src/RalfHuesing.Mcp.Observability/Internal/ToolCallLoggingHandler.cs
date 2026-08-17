@@ -22,7 +22,7 @@ internal static class ToolCallLoggingHandler
         McpRequestHandler<CallToolRequestParams, CallToolResult> next,
         CancellationToken cancellationToken)
     {
-        var services = request.Server.Services;
+        var services = request.Services ?? request.Server?.Services;
         var logWriter = services?.GetService<JsonlLogWriter>();
         var ctx = services?.GetService<ObservabilityContext>();
 

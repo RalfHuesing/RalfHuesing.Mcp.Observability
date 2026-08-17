@@ -12,7 +12,7 @@ internal sealed class JsonlLogWriter : IDisposable
     private readonly StreamWriter _writer;
     private readonly Lock _lock = new();
 
-    internal JsonlLogWriter(ObservabilityContext context)
+    public JsonlLogWriter(ObservabilityContext context)
     {
         var root = string.IsNullOrWhiteSpace(context.Options.LogDirectory)
             ? Path.Combine(
@@ -26,11 +26,13 @@ internal sealed class JsonlLogWriter : IDisposable
         Directory.CreateDirectory(dir);
 
         var fileName = $"{context.ServerName}_{context.ProcessId}_{context.InstanceId}.jsonl";
-        var filePath = Path.Combine(dir, fileName);
+        FilePath = Path.Combine(dir, fileName);
 
-        var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+        var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
         _writer = new StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
     }
+
+    internal string FilePath { get; }
 
     internal void WriteRecord(object record)
     {
