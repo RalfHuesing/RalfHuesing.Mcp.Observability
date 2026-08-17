@@ -42,7 +42,36 @@ dotnet test           # Tests ausführen (alle Projekte)
 dotnet pack           # NuGet-Paket erzeugen (src/ only)
 ```
 
-## 4. Datenformat-Invarianten (verbindlich)
+## 4. Proaktive Nutzung des AiNetLinter MCP-Servers (Token-Effizienz & Codequalität)
+
+Der resident geladene MCP-Server `ainetlinter` greift direkt auf den Roslyn-Symbolgraphen der geladenen .NET-Solution zu. Er ist **proaktiv allen Standard-Dateisuch- und Lesewerkzeugen (View/Grep) vorzuziehen**, um Kontext-Tokens drastisch zu sparen und semantische Präzision zu gewährleisten.
+
+### 4.1 Token-effiziente Code-Exploration (Struktur vor Inhalt)
+- **Keine ungezielten Datei-Dumps:** Niemals ganze `.cs`-Dateien per `view_file` oder vollständigem Text-Dump in den Kontext laden, wenn nur ein Teilbereich oder eine Übersicht benötigt wird.
+- **Skelett-Inspektion:** Zuerst `get_file_skeleton` (liefert Signaturen & stabile Symbol-IDs) oder `get_class_structure` (tabellarische Member-, Zeilen- und Sichtbarkeitsübersicht) aufrufen.
+- **Gezieltes Symbol-Lesen:** Nur die konkret benötigte Methode/Eigenschaft mit `get_symbol_body` abrufen (unter Angabe der Symbol-ID oder `Datei.cs:Zeile`).
+- **Codebase-Überblick & Hotspots:** `get_index_scope` (Scope- und Dateityp-Erfassung), `metrics_tree` (aggregierte Verzeichnisbäume nach Größe/Komplexität/Violations) und `get_hotspots` (Dateien nahe an Grenzwerten wie `MaxLineCount`) zur Navigation nutzen.
+
+### 4.2 Semantische Suche & Refactoring-Analyse (Roslyn statt Regex)
+- **Symbolsuche & Referenzen:** `find_symbol` (Substring-Suche nach Klassen/Methoden) und `find_references` (semantisch exakte Call-Sites ohne False Positives, optional mit `depth`).
+- **Aufruf- und Typbäume:** `get_call_tree` (transitive Caller-Hierarchie als ASCII oder Mermaid) und `get_type_hierarchy` (Basisklassen, Interfaces, abgeleitete Typen, DI-Registrierungen).
+- **Abhängigkeiten & Impact:** `dependency_graph` (echte Typreferenzen auf Datei-/Typebene, `incoming`/`outgoing`/`both`) und `get_impact` (prüft, welche Aufrufer von uncommitteten Änderungen oder Symbol-Modifikationen betroffen sind).
+- **Nicht-C#-Dateien:** Für Nicht-C#-Dateien (`.json`, `.md`, `.props`, `.slnx`) `search_pattern` oder Standard-Dateitools als Fallback verwenden.
+
+### 4.3 DRY-Audits, Magic Values & Code-Hygiene
+- **Duplikate & Refactoring-Drift (`find_duplicates`):**
+  - `mode='clone'`: Erkennt duplizierte Logikblöcke und unvollständig zentralisierte Instanziierungen/Initialisierungen (Token-basiertes Clone-Detection).
+  - `mode='refactoring-drift'`: Prüft per Absence-of-Calls-Heuristik, ob Methoden existierende Helper nachbauen (`helperSymbol`), statt sie aufzurufen.
+- **Magic Values (`find_magic_values`):** Vor Abschluss von Features ausführen, um unbenannte Strings, Zahlen, Timeouts, Pfade, URLs oder Statuscodes zu identifizieren und in Konstanten/Optionen auszulagern.
+- **Toter Code (`find_dead_code`):** Unbenutzte private/interne Member aufdecken (`confidence='high'` für direkt bereinigbare Member).
+- **Pattern-Audits (`pattern_detect`):** Solution-weites Audit nach Anti-Patterns (God-Classes, async void, überlange Methoden, leere Catches, Feature Envy).
+
+### 4.4 Quality-Gate & Sufficiency-Doctrine
+- **Pre-Commit Quality-Gate (`safeguard`):** Vor jedem Commit `safeguard` ausführen. Der Mindest-Score von 8.0 muss eingehalten werden; Top-Violations sind zu beheben.
+- **Regelverstöße prüfen (`get_violations`):** Nach Code-Änderungen aufrufen, um Linter-Regeln (gemäß `rules.json` / `AiNetLinter.mdc`) live zu verifizieren.
+- **Sufficiency-Doctrine:** Liefert ein Linter-Tool ein vollständiges Ergebnis (Hinweis: *"Diese Daten sind vollständig ... kein zusätzliches Read/Grep nötig"*), darf dieses **nicht** redundant per `view_file` oder `grep_search` gegengeprüft werden.
+
+## 5. Datenformat-Invarianten (verbindlich)
 
 Das JSONL-Schema ist die zentrale Schnittstelle des Pakets — Änderungen daran sind Breaking Changes:
 
@@ -54,13 +83,13 @@ Das JSONL-Schema ist die zentrale Schnittstelle des Pakets — Änderungen daran
 
 Neue Felder dürfen addiert werden (additive, non-breaking). Felder umbenennen oder entfernen ist ein Breaking Change (Major-Version).
 
-## 5. Öffentliche API-Stabilität
+## 6. Öffentliche API-Stabilität
 
 - **`McpObservabilityOptions`** und **`McpObservabilityExtensions.WithObservability`** sind die einzigen öffentlichen API-Surface-Punkte. Alle internen Klassen (`ObservabilityContext`, `JsonlLogWriter`, `ArgumentSanitizer`, `ToolCallLoggingHandler`, `FeedbackTools`) müssen `internal` bleiben.
 - **Namespace:** Ausschließlich `RalfHuesing.Mcp.Observability` für öffentliche Typen. Interne Typen liegen in `RalfHuesing.Mcp.Observability.Internal`.
 - Property-Umbenennung in `McpObservabilityOptions` ist ein Breaking Change — nie ohne Major-Version.
 
-## 6. Tests (verbindlich)
+## 7. Tests (verbindlich)
 
 - **xUnit v3** für alle Tests.
 - **Mindest-Coverage** (muss vor dem ersten Release grün sein):
@@ -73,7 +102,7 @@ Neue Felder dürfen addiert werden (additive, non-breaking). Felder umbenennen o
 - **Keine parallelen File-I/O-Tests ohne Isolation:** Jeder Test, der in das Dateisystem schreibt, nutzt ein temporäres, testspezifisches Verzeichnis (`Path.GetTempPath() + Guid`). Aufräumen im `Dispose`.
 - **Symptom-Fixing verboten:** Fehlschlagende Tests nicht auskommentieren oder Assertions abschwächen.
 
-## 7. Dokumentation & Qualität
+## 8. Dokumentation & Qualität
 
 - **Zero-Warning-Direktive:** `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` in allen Projekten. Kein Commit mit rotem Build.
 - **XML-Docs für die öffentliche API:** `McpObservabilityOptions` (alle Properties), `McpObservabilityExtensions.WithObservability`. Interne Klassen: nur wo das „Warum" nicht offensichtlich ist.
@@ -82,14 +111,14 @@ Neue Felder dürfen addiert werden (additive, non-breaking). Felder umbenennen o
 - **Dokumentations-Synchronisation (Pflicht):** Bei Änderungen an der öffentlichen API oder am JSONL-Schema immer auch `README.md` aktualisieren (ohne Aufforderung).
 - **Dokumentations-Objektivität:** Nur Implementiertes dokumentieren. Keine Superlative, keine Marketing-Adjektive. Sachlich, nachprüfbar.
 
-## 8. Versionierung & Publishing
+## 9. Versionierung & Publishing
 
 - **Semantic Versioning (SemVer):** Additive Schema-/API-Änderungen → Minor. Breaking Changes → Major. Bug-Fixes → Patch.
 - **Erste stabile Version:** `1.0.0`.
 - **Publishing:** `nuget.org`, öffentlich. Paket-README muss Integrationsbeispiel und Schema-Tabelle enthalten.
 - **Kein Pre-Release auf nuget.org** ohne explizite Entscheidung.
 
-## 9. Commit-Pflicht
+## 10. Commit-Pflicht
 
 Bei jeder Änderung an versionierten Dateien schließt die Agenten-Antwort mit einem konkreten `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ, ohne Shell-Befehle):
 
