@@ -2,10 +2,10 @@
 status: executing
 task: refine
 started_at: 2026-08-17T22:39:30+02:00
-last_updated: 2026-08-18T00:30:00+02:00
-total_steps: 3
+last_updated: 2026-08-18T00:50:00+02:00
+total_steps: 4
 rules_dir: .agents/rules
-current_step: step-003
+current_step: step-004
 ---
 
 # Task State: refine
@@ -13,9 +13,9 @@ current_step: step-003
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 3 (regulär + Korrekturen — weicher Check-in bei
+- **Steps gesamt:** 4 (regulär + Korrekturen — weicher Check-in bei
   jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
-- **Aktueller Schritt:** `step-003` (approved, Übergang zu step-004 / EPIC-04)
+- **Aktueller Schritt:** `step-004` (approved, Übergang zu step-005 / EPIC-05)
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T22:39:30+02:00
@@ -28,6 +28,7 @@ current_step: step-003
 | step-001 | EPIC-01 | done | Options-Erweiterung, Override-Kette und IMcpObservabilityService | - | e318710 | approved (`305a3c4`+`ea478a7`+`fe13039`) | e318710 |
 | step-002 | EPIC-02 | done | Sanitizer-Generalisierung, LogRecord-Type-Wechsel und Response-Logging | - | 50ac699 | approved | 50ac699 |
 | step-003 | EPIC-03 | done | Public Feedback-Tool-API, Tool-Schatten-Fix und Richtlinien-Lockerung §6 | - | ef83d6e | approved | ef83d6e |
+| step-004 | EPIC-04 | done | Writer-Lifecycle (IAsyncDisposable + FlushAsync) | - | 06a3489 | approved | 06a3489 |
 
 ## Config (optional)
 

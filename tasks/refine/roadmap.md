@@ -107,7 +107,7 @@ Versionsnummer setzt `scripts/create-release.ps1`.
       §„Manueller ToolCollection-Support" + §„Tool-Schatten-Fix" +
       §„Richtlinien-Update §6".
 
-- [ ] **EPIC-04: Writer-Lifecycle (`IAsyncDisposable` + `FlushAsync`)** —
+- [x] **EPIC-04: Writer-Lifecycle (`IAsyncDisposable` + `FlushAsync`)** _(abgeschlossen via step-004 → `06a3489` — approved)_ —
       `JsonlLogWriter` zusätzlich `IAsyncDisposable` (`DisposeAsync` ruft
       `FlushAsync` und schließt den `StreamWriter` sauber); neue Methode
       `Task FlushAsync(CancellationToken ct = default)`. Lock-Verhalten
