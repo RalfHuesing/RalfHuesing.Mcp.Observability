@@ -63,14 +63,23 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 ### Public API (Namespace `RalfHuesing.Mcp.Observability`)
 
 - **`src/RalfHuesing.Mcp.Observability/McpObservabilityOptions.cs`** — `public sealed class`
-      mit `Enabled`, `EnableToolCallLogging`, `EnableFeedbackTool`, `LogDirectory`.
-      Wird in EPIC-01 um 4 Properties (`ServerName`, `ServerVersion`,
-      `FeedbackConfirmationMessage`, `AdditionalSensitiveKeys`) und in EPIC-02
-      um 2 weitere (`EnableResponseLogging`, `MaxResponseLength`) erweitert.
+      mit `Enabled`, `EnableToolCallLogging`, `EnableFeedbackTool`, `LogDirectory`,
+      `ServerName`, `ServerVersion`, `FeedbackConfirmationMessage`,
+      `AdditionalSensitiveKeys`, plus `public const string DefaultFeedbackConfirmationMessage`.
+      Wird in EPIC-02 um 2 weitere Properties (`EnableResponseLogging`, `MaxResponseLength`)
+      erweitert. (zuletzt: step-001)
+- **`src/RalfHuesing.Mcp.Observability/IMcpObservabilityService.cs`** — `public interface`
+      (neu in EPIC-01, erste bewusste Lockerung von Richtlinie §6), sechs
+      Read-only-Properties für Diagnostik (`IsEnabled`, `ServerName`,
+      `ServerVersion`, `CurrentLogFilePath`, `ProcessId`, `InstanceId`).
+      (zuletzt: step-001)
 - **`src/RalfHuesing.Mcp.Observability/McpObservabilityExtensions.cs`** — `public static class`
       mit der `WithObservability(IMcpServerBuilder, McpObservabilityOptions?)`-Extension,
-      die Singleton-Registrierungen vornimmt und aktuell `builder.WithTools<FeedbackTools>()`
-      aufruft. Wird in EPIC-03 um `IPostConfigureOptions<McpServerOptions>` ergänzt.
+      die Singleton-Registrierungen vornimmt (`McpObservabilityOptions` +
+      `ObservabilityContext` + Factory-Forwarding `IMcpObservabilityService`),
+      bedingt `JsonlLogWriter`, ruft `builder.WithTools<FeedbackTools>()` auf.
+      Wird in EPIC-03 um `IPostConfigureOptions<McpServerOptions>` ergänzt.
+      (zuletzt: step-001)
 
 ### Internal (Namespace `RalfHuesing.Mcp.Observability.Internal`)
 
@@ -94,13 +103,18 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
       Response anwenden, Truncation bei `MaxResponseLength > 0`.
 - **`src/RalfHuesing.Mcp.Observability/Internal/JsonlLogWriter.cs`** — `internal sealed class : IDisposable`,
       FileStream im Append-Mode mit `FileShare.ReadWrite`, thread-safe via
-      `Lock`. EPIC-04: zusätzlich `IAsyncDisposable` + `FlushAsync(CancellationToken)`.
-- **`src/RalfHuesing.Mcp.Observability/Internal/ObservabilityContext.cs`** — `internal sealed class`,
+      `Lock`. Pfad kommt jetzt aus `ObservabilityContext.LogFilePath` (Single
+      Source of Truth, verlagert in step-001). EPIC-04: zusätzlich
+      `IAsyncDisposable` + `FlushAsync(CancellationToken)`. (zuletzt: step-001)
+- **`src/RalfHuesing.Mcp.Observability/Internal/ObservabilityContext.cs`** — `internal sealed class : IMcpObservabilityService`,
       process-scoped Singleton mit `ServerName`/`ServerVersion`/`ProcessId`/
-      `InstanceId`/`Options`. Heutige Auflösung:
-      `McpServerOptions.ServerInfo` → EntryAssembly → `UnknownServer`.
-      EPIC-01: Override-Kette bekommt `options.ServerName` als höchste Priorität;
-      implementiert `IMcpObservabilityService`.
+      `InstanceId`/`Options` + `internal string LogFilePath` (eager im
+      Konstruktor). Auflösung in Override-Kette:
+      `options.ServerName` → `McpServerOptions.ServerInfo.Name` → EntryAssembly
+      → `UnknownServer` (analog für `ServerVersion` mit `string.Empty` als
+      unterste Stufe). Implementiert `IMcpObservabilityService` implizit
+      (public-Properties, `Options`/`LogFilePath` bleiben internal).
+      (zuletzt: step-001)
 - **`src/RalfHuesing.Mcp.Observability/Internal/FeedbackTools.cs`** — `internal sealed class`
       mit `[McpServerToolType]` + `ReportFeedback(...)` (statische Methode,
       via Reflection von `builder.WithTools<FeedbackTools>()` aufgerufen).
@@ -133,6 +147,10 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 - **`tests/RalfHuesing.Mcp.Observability.Tests/Integration/McpOptionsFlagsTests.cs`** — bestehende
       Tests für `Enabled=false`, `EnableToolCallLogging=false`,
       `EnableFeedbackTool=false`.
+- **`tests/RalfHuesing.Mcp.Observability.Tests/Integration/McpOptionsServerNameOverrideTests.cs`** — neu
+      (EPIC-01, step-001), 4 Integration-Cases für die
+      `McpObservabilityOptions.ServerName`/`ServerVersion`-Override-Kette
+      gegen `McpServerOptions.ServerInfo`. (zuletzt: step-001)
 
 ### Konfiguration
 
