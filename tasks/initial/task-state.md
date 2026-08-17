@@ -2,10 +2,10 @@
 status: executing
 task: initial
 started_at: "2026-08-17T20:25:00+02:00"
-last_updated: "2026-08-17T20:27:00+02:00"
+last_updated: "2026-08-17T20:30:30+02:00"
 rules_dir: .agents/rules
-total_steps: 1
-current_step: step-001
+total_steps: 2
+current_step: step-002
 ---
 
 # Task State: initial
@@ -13,18 +13,19 @@ current_step: step-001
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 1
-- **Aktueller Schritt:** `step-001`
+- **Steps gesamt:** 2
+- **Aktueller Schritt:** `step-002`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T20:25:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T20:29:30+02:00
+- **Zuletzt aktualisiert:** 2026-08-17T20:30:30+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Core Engine Validierung & Unit-Tests fuer Sanitizer und Writer | - | 9a76f52 | approved | 9a76f52 |
+| step-002 | EPIC-02 | open | MCP Middleware, Feedback-Tool Registrierung und Integrationstests | - | - | - | - |
 
 ## Config (optional)
 

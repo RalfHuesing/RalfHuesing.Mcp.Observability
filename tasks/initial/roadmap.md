@@ -30,7 +30,7 @@ obsolet markiert) — kein starres Vorab-Dokument.
 
 ## Epics
 
-- [ ] EPIC-01: Core Logging & Sanitizing Engine — Datenmodelle, JsonlLogWriter mit Verzeichnisstruktur/Lebenszyklus und rekursiver ArgumentSanitizer (Konzept §4, §5, §9.1).
-- [ ] EPIC-02: MCP Integration & Feedback Channel — ToolCallLoggingHandler-Interzeption, FeedbackTools (`report_observability_feedback`) und WithObservability-Extension (Konzept §6, §7, §8, §9).
+- [x] EPIC-01: Core Logging & Sanitizing Engine — Datenmodelle, JsonlLogWriter mit Verzeichnisstruktur/Lebenszyklus und rekursiver ArgumentSanitizer (→ step-001)
+- [ ] EPIC-02: MCP Integration & Feedback Channel — ToolCallLoggingHandler-Interzeption, FeedbackTools (`report_observability_feedback`) und WithObservability-Extension (in Arbeit → step-002)
 - [ ] EPIC-03: Umfassende Test-Suite — Unit-Tests für Sanitizer & Writer sowie Integrationstests für Tool-Aufrufe, Feedback-Aufrufe und Options-Schalter mit Temp-Verzeichnis-Isolation (Konzept §11).
 - [ ] EPIC-04: Dokumentation, Samples & Package-Verifikation — Sample-Überprüfung, README-Dokumentation mit Schema & Integrationsanleitung sowie Pack-/Release-Prüfung (Konzept §10, §12, §13, §15).
