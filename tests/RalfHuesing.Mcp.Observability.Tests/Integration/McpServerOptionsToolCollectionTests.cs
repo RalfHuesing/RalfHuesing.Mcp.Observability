@@ -29,97 +29,63 @@ public sealed class McpServerOptionsToolCollectionTests : IntegrationTestBase
     public async Task ManualToolCollection_WithObservability_FeedbackToolIsListed()
     {
         var ct = TestContext.Current.CancellationToken;
-        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
-        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
+        var (host, client) = await StartServerAndConnectClientAsync([CreateSampleTool()]);
 
-        var builder = Host.CreateEmptyApplicationBuilder(null);
-        builder.Services.AddMcpServer(serverOptions =>
+        await using (client)
         {
-            serverOptions.ServerInfo = new() { Name = "ManualServer", Version = "1.0.0" };
-            serverOptions.ToolCollection = [CreateSampleTool()];
-        })
-        .WithStreamServerTransport(serverRead, serverWrite)
-        .WithObservability(options);
+            var tools = await client.ListToolsAsync(cancellationToken: ct);
 
-        var host = builder.Build();
-        await host.StartAsync(ct);
-
-        await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
-        var tools = await client.ListToolsAsync(cancellationToken: ct);
-
-        Assert.Contains(tools, t => t.Name == "report_observability_feedback");
-        Assert.Contains(tools, t => t.Name == "manual_echo");
+            Assert.Contains(tools, t => t.Name == "report_observability_feedback");
+            Assert.Contains(tools, t => t.Name == "manual_echo");
+        }
 
         await host.StopAsync(ct);
+        host.Dispose();
     }
 
     [Fact]
     public async Task ManualToolCollection_PreAddedFeedbackTool_StaysIdempotent()
     {
         var ct = TestContext.Current.CancellationToken;
-        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
-        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
-
         var collection = new McpServerPrimitiveCollection<McpServerTool>();
-        var builder = Host.CreateEmptyApplicationBuilder(null);
-        builder.Services.AddMcpServer(serverOptions =>
+
+        var (host, client) = await StartServerAndConnectClientAsync(
+            collection,
+            h => collection.AddFeedbackTool(h.Services));
+
+        await using (client)
         {
-            serverOptions.ServerInfo = new() { Name = "ManualServer", Version = "1.0.0" };
-            serverOptions.ToolCollection = collection;
-        })
-        .WithStreamServerTransport(serverRead, serverWrite)
-        .WithObservability(options);
-
-        var host = builder.Build();
-
-        // Consumer attaches the feedback tool up-front; post-configure must not duplicate it.
-        collection.AddFeedbackTool(host.Services);
-
-        await host.StartAsync(ct);
-
-        await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
-        var tools = await client.ListToolsAsync(cancellationToken: ct);
-
-        Assert.Single(tools, t => t.Name == "report_observability_feedback");
+            var tools = await client.ListToolsAsync(cancellationToken: ct);
+            Assert.Single(tools, t => t.Name == "report_observability_feedback");
+        }
 
         await host.StopAsync(ct);
+        host.Dispose();
     }
 
     [Fact]
     public async Task ManualToolCollection_FeedbackToolCall_WritesFeedbackRecord()
     {
         var ct = TestContext.Current.CancellationToken;
-        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
-        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
+        var (host, client) = await StartServerAndConnectClientAsync([CreateSampleTool()]);
 
-        var builder = Host.CreateEmptyApplicationBuilder(null);
-        builder.Services.AddMcpServer(serverOptions =>
+        await using (client)
         {
-            serverOptions.ServerInfo = new() { Name = "ManualServer", Version = "1.0.0" };
-            serverOptions.ToolCollection = [CreateSampleTool()];
-        })
-        .WithStreamServerTransport(serverRead, serverWrite)
-        .WithObservability(options);
-
-        var host = builder.Build();
-        await host.StartAsync(ct);
-
-        await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
-
-        var result = await client.CallToolAsync(new CallToolRequestParams
-        {
-            Name = "report_observability_feedback",
-            Arguments = new Dictionary<string, JsonElement>
+            var result = await client.CallToolAsync(new CallToolRequestParams
             {
-                ["feedbackType"] = JsonSerializer.SerializeToElement("issue"),
-                ["title"] = JsonSerializer.SerializeToElement("Manual collection feedback"),
-                ["description"] = JsonSerializer.SerializeToElement("Reported via manually assigned ToolCollection."),
-            }
-        }, cancellationToken: ct);
+                Name = "report_observability_feedback",
+                Arguments = new Dictionary<string, JsonElement>
+                {
+                    ["feedbackType"] = JsonSerializer.SerializeToElement("issue"),
+                    ["title"] = JsonSerializer.SerializeToElement("Manual collection feedback"),
+                    ["description"] = JsonSerializer.SerializeToElement("Reported via manually assigned ToolCollection."),
+                }
+            }, cancellationToken: ct);
 
-        Assert.False(result.IsError ?? false);
-        var text = result.Content?.OfType<TextContentBlock>().FirstOrDefault()?.Text;
-        Assert.Equal(McpObservabilityOptions.DefaultFeedbackConfirmationMessage, text);
+            Assert.False(result.IsError ?? false);
+            var text = result.Content?.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+            Assert.Equal(McpObservabilityOptions.DefaultFeedbackConfirmationMessage, text);
+        }
 
         var writer = host.Services.GetRequiredService<FeedbackJsonlLogWriter>();
         var lines = await ReadAllLinesSharedAsync(writer.FilePath, ct);
@@ -132,6 +98,33 @@ public sealed class McpServerOptionsToolCollectionTests : IntegrationTestBase
         Assert.Equal("Manual collection feedback", root.GetProperty("title").GetString());
 
         await host.StopAsync(ct);
+        host.Dispose();
+    }
+
+    private async Task<(IHost Host, McpClient Client)> StartServerAndConnectClientAsync(
+        McpServerPrimitiveCollection<McpServerTool> collection,
+        Action<IHost>? beforeStart = null)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
+        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
+
+        var builder = Host.CreateEmptyApplicationBuilder(null);
+        builder.Services.AddMcpServer(serverOptions =>
+        {
+            serverOptions.ServerInfo = new() { Name = "ManualServer", Version = "1.0.0" };
+            serverOptions.ToolCollection = collection;
+        })
+        .WithStreamServerTransport(serverRead, serverWrite)
+        .WithObservability(options);
+
+        var host = builder.Build();
+        beforeStart?.Invoke(host);
+
+        await host.StartAsync(ct);
+        var client = await CreateClientAsync(clientWrite, clientRead, ct);
+
+        return (host, client);
     }
 
     private static McpServerTool CreateSampleTool()
@@ -146,4 +139,3 @@ public sealed class McpServerOptionsToolCollectionTests : IntegrationTestBase
         return await McpClient.CreateAsync(transport, cancellationToken: ct);
     }
 }
-

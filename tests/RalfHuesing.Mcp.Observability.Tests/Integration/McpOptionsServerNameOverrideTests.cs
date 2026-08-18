@@ -23,112 +23,38 @@ public sealed class McpOptionsServerNameOverrideTests : IntegrationTestBase
     [Fact]
     public async Task ServerName_OptionOverridesServerInfo_Name()
     {
-        var ct = TestContext.Current.CancellationToken;
-
         var options = new McpObservabilityOptions
         {
             ServerName = "CustomName",
             LogDirectory = TempDirectory
         };
 
-        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
+        var (serverName, serverVersion) = await ExecuteAndExtractServerInfoAsync(
+            options, new Implementation { Name = "SdkName", Version = "1.2.3" });
 
-        var builder = Host.CreateEmptyApplicationBuilder(null);
-        builder.Services.AddMcpServer(serverOptions =>
-        {
-            serverOptions.ServerInfo = new() { Name = "SdkName", Version = "1.2.3" };
-        })
-        .WithStreamServerTransport(serverRead, serverWrite)
-        .WithTools<ServerNameOverrideEchoTool>()
-        .WithObservability(options);
-
-        var host = builder.Build();
-        await host.StartAsync(ct);
-
-        var clientTransport = new StreamClientTransport(clientWrite, clientRead);
-        var client = await McpClient.CreateAsync(clientTransport, cancellationToken: ct);
-
-        var callParams = new CallToolRequestParams
-        {
-            Name = "echo",
-            Arguments = new Dictionary<string, JsonElement>
-            {
-                ["text"] = JsonSerializer.SerializeToElement("hello")
-            }
-        };
-        await client.CallToolAsync(callParams, cancellationToken: ct);
-
-        var writer = host.Services.GetRequiredService<JsonlLogWriter>();
-        var lines = await ReadAllLinesSharedAsync(writer.FilePath, ct);
-        Assert.Single(lines);
-
-        using var doc = JsonDocument.Parse(lines[0]);
-        var root = doc.RootElement;
-        Assert.Equal("CustomName", root.GetProperty("serverName").GetString());
-        Assert.Equal("1.2.3", root.GetProperty("serverVersion").GetString());
-
-        await client.DisposeAsync();
-        await host.StopAsync(ct);
-        host.Dispose();
+        Assert.Equal("CustomName", serverName);
+        Assert.Equal("1.2.3", serverVersion);
     }
 
     [Fact]
     public async Task ServerVersion_OptionOverridesServerInfo_Version()
     {
-        var ct = TestContext.Current.CancellationToken;
-
         var options = new McpObservabilityOptions
         {
             ServerVersion = "9.9.9",
             LogDirectory = TempDirectory
         };
 
-        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
+        var (serverName, serverVersion) = await ExecuteAndExtractServerInfoAsync(
+            options, new Implementation { Name = "SdkName", Version = "1.2.3" });
 
-        var builder = Host.CreateEmptyApplicationBuilder(null);
-        builder.Services.AddMcpServer(serverOptions =>
-        {
-            serverOptions.ServerInfo = new() { Name = "SdkName", Version = "1.2.3" };
-        })
-        .WithStreamServerTransport(serverRead, serverWrite)
-        .WithTools<ServerNameOverrideEchoTool>()
-        .WithObservability(options);
-
-        var host = builder.Build();
-        await host.StartAsync(ct);
-
-        var clientTransport = new StreamClientTransport(clientWrite, clientRead);
-        var client = await McpClient.CreateAsync(clientTransport, cancellationToken: ct);
-
-        var callParams = new CallToolRequestParams
-        {
-            Name = "echo",
-            Arguments = new Dictionary<string, JsonElement>
-            {
-                ["text"] = JsonSerializer.SerializeToElement("hello")
-            }
-        };
-        await client.CallToolAsync(callParams, cancellationToken: ct);
-
-        var writer = host.Services.GetRequiredService<JsonlLogWriter>();
-        var lines = await ReadAllLinesSharedAsync(writer.FilePath, ct);
-        Assert.Single(lines);
-
-        using var doc = JsonDocument.Parse(lines[0]);
-        var root = doc.RootElement;
-        Assert.Equal("SdkName", root.GetProperty("serverName").GetString());
-        Assert.Equal("9.9.9", root.GetProperty("serverVersion").GetString());
-
-        await client.DisposeAsync();
-        await host.StopAsync(ct);
-        host.Dispose();
+        Assert.Equal("SdkName", serverName);
+        Assert.Equal("9.9.9", serverVersion);
     }
 
     [Fact]
     public async Task BothOptionsSet_BothAppearInRecord()
     {
-        var ct = TestContext.Current.CancellationToken;
-
         var options = new McpObservabilityOptions
         {
             ServerName = "X",
@@ -136,63 +62,39 @@ public sealed class McpOptionsServerNameOverrideTests : IntegrationTestBase
             LogDirectory = TempDirectory
         };
 
-        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
+        var (serverName, serverVersion) = await ExecuteAndExtractServerInfoAsync(
+            options, new Implementation { Name = "SdkName", Version = "1.2.3" });
 
-        var builder = Host.CreateEmptyApplicationBuilder(null);
-        builder.Services.AddMcpServer(serverOptions =>
-        {
-            serverOptions.ServerInfo = new() { Name = "SdkName", Version = "1.2.3" };
-        })
-        .WithStreamServerTransport(serverRead, serverWrite)
-        .WithTools<ServerNameOverrideEchoTool>()
-        .WithObservability(options);
-
-        var host = builder.Build();
-        await host.StartAsync(ct);
-
-        var clientTransport = new StreamClientTransport(clientWrite, clientRead);
-        var client = await McpClient.CreateAsync(clientTransport, cancellationToken: ct);
-
-        var callParams = new CallToolRequestParams
-        {
-            Name = "echo",
-            Arguments = new Dictionary<string, JsonElement>
-            {
-                ["text"] = JsonSerializer.SerializeToElement("hello")
-            }
-        };
-        await client.CallToolAsync(callParams, cancellationToken: ct);
-
-        var writer = host.Services.GetRequiredService<JsonlLogWriter>();
-        var lines = await ReadAllLinesSharedAsync(writer.FilePath, ct);
-        Assert.Single(lines);
-
-        using var doc = JsonDocument.Parse(lines[0]);
-        var root = doc.RootElement;
-        Assert.Equal("X", root.GetProperty("serverName").GetString());
-        Assert.Equal("Y", root.GetProperty("serverVersion").GetString());
-
-        await client.DisposeAsync();
-        await host.StopAsync(ct);
-        host.Dispose();
+        Assert.Equal("X", serverName);
+        Assert.Equal("Y", serverVersion);
     }
 
     [Fact]
     public async Task BothOptionsNull_FallsBackToServerInfo()
     {
-        var ct = TestContext.Current.CancellationToken;
-
         var options = new McpObservabilityOptions
         {
             LogDirectory = TempDirectory
         };
 
+        var (serverName, serverVersion) = await ExecuteAndExtractServerInfoAsync(
+            options, new Implementation { Name = "SdkName", Version = "1.2.3" });
+
+        Assert.Equal("SdkName", serverName);
+        Assert.Equal("1.2.3", serverVersion);
+    }
+
+    private static async Task<(string? ServerName, string? ServerVersion)> ExecuteAndExtractServerInfoAsync(
+        McpObservabilityOptions options,
+        Implementation serverInfo)
+    {
+        var ct = TestContext.Current.CancellationToken;
         var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
 
         var builder = Host.CreateEmptyApplicationBuilder(null);
         builder.Services.AddMcpServer(serverOptions =>
         {
-            serverOptions.ServerInfo = new() { Name = "SdkName", Version = "1.2.3" };
+            serverOptions.ServerInfo = serverInfo;
         })
         .WithStreamServerTransport(serverRead, serverWrite)
         .WithTools<ServerNameOverrideEchoTool>()
@@ -220,11 +122,13 @@ public sealed class McpOptionsServerNameOverrideTests : IntegrationTestBase
 
         using var doc = JsonDocument.Parse(lines[0]);
         var root = doc.RootElement;
-        Assert.Equal("SdkName", root.GetProperty("serverName").GetString());
-        Assert.Equal("1.2.3", root.GetProperty("serverVersion").GetString());
+        var name = root.GetProperty("serverName").GetString();
+        var version = root.GetProperty("serverVersion").GetString();
 
         await client.DisposeAsync();
         await host.StopAsync(ct);
         host.Dispose();
+
+        return (name, version);
     }
 }

@@ -13,8 +13,11 @@ internal static class ObservabilityConstants
     internal const string RedactedMarker = "***REDACTED***";
     internal const string DefaultCompanyName = "RalfHuesing";
     internal const string DefaultProductName = "McpObservability";
-    internal const string DefaultFeedbackResponse = "Feedback recorded. Thank you.";
+    internal const string DefaultFeedbackResponse = McpObservabilityOptions.DefaultFeedbackConfirmationMessage;
     internal const string FeedbackToolName = McpObservabilityTools.FeedbackToolName;
     internal const string DefaultSeverity = "medium";
     internal const string UnknownServerName = "UnknownServer";
+    internal const string JsonlExtension = ".jsonl";
+    internal const string FeedbackJsonlExtension = ".feedback.jsonl";
+    internal const string InstanceIdFormat = "N";
 }

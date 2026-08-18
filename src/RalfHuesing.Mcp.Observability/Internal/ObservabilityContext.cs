@@ -43,7 +43,7 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
         Options = options;
         _services = services;
         ProcessId = Environment.ProcessId;
-        InstanceId = Guid.NewGuid().ToString("N");
+        InstanceId = Guid.NewGuid().ToString(ObservabilityConstants.InstanceIdFormat);
 
         var info = serverOptions?.Value?.ServerInfo;
         var hasInfoName = info is not null && !string.IsNullOrWhiteSpace(info.Name);
@@ -100,8 +100,8 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
             CultureInfo.InvariantCulture);
         var dir = Path.Combine(root, serverName, dateFolder);
 
-        var logFileName = $"{serverName}_{processId}_{instanceId}.jsonl";
-        var feedbackFileName = $"{serverName}_{processId}_{instanceId}.feedback.jsonl";
+        var logFileName = $"{serverName}_{processId}_{instanceId}{ObservabilityConstants.JsonlExtension}";
+        var feedbackFileName = $"{serverName}_{processId}_{instanceId}{ObservabilityConstants.FeedbackJsonlExtension}";
 
         return (Path.Combine(dir, logFileName), Path.Combine(dir, feedbackFileName));
     }
