@@ -13,13 +13,15 @@ public static class McpObservabilityExtensions
 {
     /// <summary>
     /// Activates tool-call logging and the feedback tool for this MCP server.
-    /// When <paramref name="options"/> is <c>null</c> or <see cref="McpObservabilityOptions.Enabled"/>
-    /// is <c>false</c>, this method is a no-op.
+    /// When <paramref name="options"/> is <c>null</c>, all defaults are used (everything enabled,
+    /// log directory <c>%LOCALAPPDATA%\RalfHuesing\McpObservability\</c>).
+    /// When <see cref="McpObservabilityOptions.Enabled"/> is <c>false</c>, no logging occurs and the
+    /// feedback tool is not registered, but a disabled <see cref="IMcpObservabilityService"/> is
+    /// registered in DI for safe consumption.
     /// </summary>
     /// <param name="builder">The MCP server builder to extend.</param>
     /// <param name="options">
-    /// Optional configuration. Pass <c>null</c> to use all defaults (everything enabled,
-    /// log directory <c>%LOCALAPPDATA%\RalfHuesing\McpObservability\</c>).
+    /// Optional configuration. Pass <c>null</c> to use all defaults.
     /// </param>
     /// <returns>The same <paramref name="builder"/> for chaining.</returns>
     public static IMcpServerBuilder WithObservability(
@@ -30,6 +32,8 @@ public static class McpObservabilityExtensions
 
         if (!resolvedOptions.Enabled)
         {
+            builder.Services.AddSingleton(resolvedOptions);
+            builder.Services.AddSingleton<IMcpObservabilityService, DisabledObservabilityService>();
             return builder;
         }
 

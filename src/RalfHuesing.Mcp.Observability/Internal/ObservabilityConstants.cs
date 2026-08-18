@@ -14,7 +14,7 @@ internal static class ObservabilityConstants
     internal const string DefaultCompanyName = "RalfHuesing";
     internal const string DefaultProductName = "McpObservability";
     internal const string DefaultFeedbackResponse = "Feedback recorded. Thank you.";
-    internal const string FeedbackToolName = "report_observability_feedback";
+    internal const string FeedbackToolName = McpObservabilityTools.FeedbackToolName;
     internal const string DefaultSeverity = "medium";
     internal const string UnknownServerName = "UnknownServer";
 }

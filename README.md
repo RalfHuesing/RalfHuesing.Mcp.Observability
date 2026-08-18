@@ -101,16 +101,30 @@ builder.Services
     .WithObservability(); // automatically appends report_observability_feedback via post-configure
 ```
 
-You can also explicitly attach the feedback tool directly to any `McpServerPrimitiveCollection<McpServerTool>`:
+You can also explicitly attach the feedback tool directly to any `McpServerPrimitiveCollection<McpServerTool>` without requiring a service provider:
 
 ```csharp
-toolsCollection.AddFeedbackTool(serviceProvider);
+// Attaches report_observability_feedback directly (idempotent, services parameter is optional)
+toolsCollection.AddFeedbackTool();
+```
+
+When writing system prompts, handshake instructions, or tool filters, reference the public constant instead of repeating magic strings:
+
+```csharp
+// McpObservabilityTools.FeedbackToolName == "report_observability_feedback"
+var instructions = $"Please report any issues via {McpObservabilityTools.FeedbackToolName}.";
 ```
 
 ## Configuration
 
-All settings are optional. Without configuration, everything is enabled
-and logs go to `%LOCALAPPDATA%\RalfHuesing\McpObservability\`.
+All settings are optional. Without configuration, everything is enabled,
+server name and version are automatically derived from `McpServerOptions.ServerInfo`,
+and logs go to `%LOCALAPPDATA%\RalfHuesing.Mcp.Observability\`.
+
+> [!NOTE]
+> You do **not** need to specify `ServerName` or `ServerVersion` in `McpObservabilityOptions`
+> if your MCP server already configures `McpServerOptions.ServerInfo` — it is automatically
+> synchronized.
 
 ```json
 {
@@ -119,9 +133,9 @@ and logs go to `%LOCALAPPDATA%\RalfHuesing\McpObservability\`.
     "EnableToolCallLogging": true,
     "EnableFeedbackTool": true,
     "EnableResponseLogging": true,
-    "MaxResponseLength": 0,
-    "ServerName": "CustomServerName",
-    "ServerVersion": "1.2.0"
+    "MaxResponseLength": 0
+    // "ServerName": "CustomOverrideName",
+    // "ServerVersion": "1.2.0",
     // "LogDirectory": "D:\\Logs\\Mcp"
   }
 }
@@ -129,20 +143,22 @@ and logs go to `%LOCALAPPDATA%\RalfHuesing\McpObservability\`.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `Enabled` | `bool` | `true` | Master switch. When `false`, no logging and no feedback tool. |
+| `Enabled` | `bool` | `true` | Master switch. When `false`, no logging occurs and the feedback tool is not registered. `IMcpObservabilityService` is registered as a safe disabled null-object. |
 | `EnableToolCallLogging` | `bool` | `true` | Logs every tool invocation as a `tool_call` record. |
 | `EnableFeedbackTool` | `bool` | `true` | Registers the `report_observability_feedback` MCP tool. |
 | `EnableResponseLogging` | `bool` | `true` | Captures sanitized response content in `tool_call` records. When `false`, `response` is `null`; response metrics remain recorded. |
 | `MaxResponseLength` | `int` | `0` | Maximum character length for response strings before truncation (`0` = unconstrained). |
-| `ServerName` | `string?` | `null` | Overrides the server name in log records (falls back to `ServerInfo.Name`, entry assembly, or `"UnknownServer"`). |
-| `ServerVersion` | `string?` | `null` | Overrides the server version in log records. |
+| `ServerName` | `string?` | `null` | Overrides the server name in log records (automatically falls back to `ServerInfo.Name`, entry assembly, or `"UnknownServer"`). |
+| `ServerVersion` | `string?` | `null` | Overrides the server version in log records (automatically falls back to `ServerInfo.Version` or entry assembly). |
 | `FeedbackConfirmationMessage` | `string` | `"Feedback recorded. Thank you."` | Confirmation message returned by the feedback tool. |
 | `AdditionalSensitiveKeys` | `HashSet<string>` | `[]` | Additional argument / response keys to redact (case-insensitive). |
-| `LogDirectory` | `string?` | `null` | Override log root. `null` = `%LOCALAPPDATA%\RalfHuesing\McpObservability\`. |
+| `LogDirectory` | `string?` | `null` | Override log root. `null` = `%LOCALAPPDATA%\RalfHuesing.Mcp.Observability\`. |
 
-## Diagnostics Service
+## Diagnostics Service & Null-Object Pattern
 
-Inject `IMcpObservabilityService` anywhere in your application to read current observability state:
+Inject `IMcpObservabilityService` anywhere in your application (health endpoints, diagnostics, admin tools) to inspect observability state.
+
+When observability is disabled (`Enabled = false`), `IMcpObservabilityService` is still registered as a **safe null-object** (`IsEnabled == false`, `CurrentLogFilePath == null`), so consuming services never need null-checks and DI never fails:
 
 ```csharp
 public class StatusEndpoint(IMcpObservabilityService observability)
@@ -157,6 +173,20 @@ public class StatusEndpoint(IMcpObservabilityService observability)
         observability.InstanceId
     };
 }
+```
+
+## Lifecycle, Flushing & Testing
+
+`JsonlLogWriter` flushes writes to disk and is disposed when the host / `IServiceProvider` is disposed (`await host.StopAsync()` or `host.Dispose()`).
+
+In unit tests or diagnostics tools where you want to ensure all pending records are flushed to disk before reading assertions, call `FlushAsync()` directly on `IMcpObservabilityService`:
+
+```csharp
+var observability = host.Services.GetRequiredService<IMcpObservabilityService>();
+await observability.FlushAsync();
+
+// Now assert on file contents
+var lines = await File.ReadAllLinesAsync(observability.CurrentLogFilePath!);
 ```
 
 ## Reading logs while the server is running

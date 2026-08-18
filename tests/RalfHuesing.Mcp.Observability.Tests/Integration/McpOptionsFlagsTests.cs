@@ -59,6 +59,17 @@ public sealed class McpOptionsFlagsTests : IntegrationTestBase
         var result = await client.CallToolAsync(callParams, cancellationToken: ct);
         Assert.NotNull(result);
 
+        // IMcpObservabilityService is registered in DI as a null-object
+        var obsService = host.Services.GetService<IMcpObservabilityService>();
+        Assert.NotNull(obsService);
+        Assert.False(obsService.IsEnabled);
+        Assert.Null(obsService.CurrentLogFilePath);
+        Assert.Equal("DisabledServer", obsService.ServerName);
+        Assert.Equal("1.0.0", obsService.ServerVersion);
+        Assert.Equal(string.Empty, obsService.InstanceId);
+        Assert.Equal(Environment.ProcessId, obsService.ProcessId);
+        await obsService.FlushAsync(ct);
+
         // No log files should be created
         var jsonlFiles = Directory.GetFiles(TempDirectory, "*.jsonl", SearchOption.AllDirectories);
         Assert.Empty(jsonlFiles);

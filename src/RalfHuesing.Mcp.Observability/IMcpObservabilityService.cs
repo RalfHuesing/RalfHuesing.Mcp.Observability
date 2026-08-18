@@ -57,4 +57,12 @@ public interface IMcpObservabilityService
     /// within a process.
     /// </summary>
     string InstanceId { get; }
+
+    /// <summary>
+    /// Asynchronously flushes any pending writes in the underlying log writer to disk.
+    /// Returns a completed task immediately when observability is disabled or no log writer is active.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token to cancel the flush operation.</param>
+    /// <returns>A task representing the asynchronous flush operation.</returns>
+    Task FlushAsync(CancellationToken cancellationToken = default);
 }

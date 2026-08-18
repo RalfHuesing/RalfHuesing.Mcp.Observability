@@ -12,21 +12,24 @@ namespace RalfHuesing.Mcp.Observability;
 public static class McpObservabilityTools
 {
     /// <summary>
+    /// The default tool name for the agent feedback reporting tool (<c>"report_observability_feedback"</c>).
+    /// </summary>
+    public const string FeedbackToolName = "report_observability_feedback";
+
+    /// <summary>
     /// Creates the <c>report_observability_feedback</c> tool as an
     /// <see cref="McpServerTool"/> instance, semantically identical to the
     /// tool registered by <see cref="McpObservabilityExtensions.WithObservability"/>,
     /// but usable without reflection on internal types.
     /// </summary>
     /// <param name="services">
-    /// Service provider used as fallback for resolving observability services
+    /// Optional service provider used as fallback for resolving observability services
     /// (<c>JsonlLogWriter</c>, <c>ObservabilityContext</c>) when the invocation
     /// request context does not supply one.
     /// </param>
     /// <returns>The feedback tool, ready to be added to a tool collection.</returns>
-    public static McpServerTool CreateFeedbackTool(IServiceProvider services)
+    public static McpServerTool CreateFeedbackTool(IServiceProvider? services = null)
     {
-        ArgumentNullException.ThrowIfNull(services);
-
         // Method group (not a lambda): Delegate.Method keeps parameter names,
         // [Description] attributes and default values for schema inference.
         return McpServerTool.Create(
@@ -34,7 +37,7 @@ public static class McpObservabilityTools
                 string?, string?, string?, string>)FeedbackTools.ReportFeedback,
             new McpServerToolCreateOptions
             {
-                Name = ObservabilityConstants.FeedbackToolName,
+                Name = FeedbackToolName,
                 Services = services,
             });
     }
@@ -45,14 +48,14 @@ public static class McpObservabilityTools
     /// present, the collection is left unchanged.
     /// </summary>
     /// <param name="tools">The tool collection to extend.</param>
-    /// <param name="services">Service provider, see <see cref="CreateFeedbackTool"/>.</param>
+    /// <param name="services">Optional service provider, see <see cref="CreateFeedbackTool"/>.</param>
     public static void AddFeedbackTool(
         this McpServerPrimitiveCollection<McpServerTool> tools,
-        IServiceProvider services)
+        IServiceProvider? services = null)
     {
         ArgumentNullException.ThrowIfNull(tools);
 
-        if (tools.TryGetPrimitive(ObservabilityConstants.FeedbackToolName, out _))
+        if (tools.TryGetPrimitive(FeedbackToolName, out _))
         {
             return;
         }

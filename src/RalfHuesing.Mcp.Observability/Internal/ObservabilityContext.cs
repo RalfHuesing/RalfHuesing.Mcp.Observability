@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -13,6 +14,8 @@ namespace RalfHuesing.Mcp.Observability.Internal;
 /// </summary>
 internal sealed class ObservabilityContext : IMcpObservabilityService
 {
+    private readonly IServiceProvider? _services;
+
     public string ServerName { get; }
     public string ServerVersion { get; }
     public int ProcessId { get; }
@@ -28,9 +31,13 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
 
     internal McpObservabilityOptions Options { get; }
 
-    public ObservabilityContext(McpObservabilityOptions options, IOptions<McpServerOptions>? serverOptions = null)
+    public ObservabilityContext(
+        McpObservabilityOptions options,
+        IOptions<McpServerOptions>? serverOptions = null,
+        IServiceProvider? services = null)
     {
         Options = options;
+        _services = services;
         ProcessId = Environment.ProcessId;
         InstanceId = Guid.NewGuid().ToString("N");
 
@@ -47,7 +54,17 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
 
     /// <inheritdoc />
     public string? CurrentLogFilePath =>
-        (Options.EnableToolCallLogging || Options.EnableFeedbackTool) ? LogFilePath : null;
+        (Options.Enabled && (Options.EnableToolCallLogging || Options.EnableFeedbackTool)) ? LogFilePath : null;
+
+    /// <inheritdoc />
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        var writer = _services?.GetService<JsonlLogWriter>();
+        if (writer is not null)
+        {
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     private static string ResolveServerName(
         McpObservabilityOptions options,
@@ -104,7 +121,6 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
             ObservabilityConstants.DateFormat,
             CultureInfo.InvariantCulture);
         var dir = Path.Combine(root, serverName, dateFolder);
-        Directory.CreateDirectory(dir);
 
         var fileName = $"{serverName}_{processId}_{instanceId}.jsonl";
         return Path.Combine(dir, fileName);
