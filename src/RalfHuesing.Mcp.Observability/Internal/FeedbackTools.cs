@@ -29,10 +29,11 @@ internal sealed class FeedbackTools
         [Description("Any additional free-form context.")] string? additionalContext = null)
     {
         // services may be null in test scenarios; gracefully fall back
-        var logWriter = services?.GetService<JsonlLogWriter>();
+        var feedbackWriter = services?.GetService<FeedbackJsonlLogWriter>();
+        var fallbackWriter = services?.GetService<JsonlLogWriter>();
         var ctx = services?.GetService<ObservabilityContext>();
 
-        if (logWriter is not null && ctx is not null)
+        if ((feedbackWriter is not null || fallbackWriter is not null) && ctx is not null)
         {
             var record = new FeedbackRecord(
                 SchemaVersion: ObservabilityConstants.SchemaVersion,
@@ -51,7 +52,14 @@ internal sealed class FeedbackTools
                 ActualBehavior: actualBehavior,
                 AdditionalContext: additionalContext);
 
-            logWriter.WriteRecord(record);
+            if (feedbackWriter is not null)
+            {
+                feedbackWriter.WriteRecord(record);
+            }
+            else
+            {
+                fallbackWriter?.WriteRecord(record);
+            }
         }
 
         return ctx?.Options.FeedbackConfirmationMessage

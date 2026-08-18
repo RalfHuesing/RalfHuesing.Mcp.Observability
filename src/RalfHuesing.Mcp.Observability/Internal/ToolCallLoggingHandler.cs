@@ -43,7 +43,8 @@ internal static class ToolCallLoggingHandler
         finally
         {
             stopwatch.Stop();
-            if (logWriter is not null && ctx is not null)
+            if (logWriter is not null && ctx is not null &&
+                !string.Equals(request.Params?.Name, ObservabilityConstants.FeedbackToolName, StringComparison.Ordinal))
             {
                 var record = CreateRecord(request, ctx, result, exception, stopwatch.ElapsedMilliseconds);
                 logWriter.WriteRecord(record);

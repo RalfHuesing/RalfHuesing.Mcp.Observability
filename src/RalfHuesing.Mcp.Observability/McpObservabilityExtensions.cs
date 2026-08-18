@@ -42,18 +42,15 @@ public static class McpObservabilityExtensions
         builder.Services.AddSingleton<IMcpObservabilityService>(
             sp => sp.GetRequiredService<ObservabilityContext>());
 
-        if (resolvedOptions.EnableToolCallLogging || resolvedOptions.EnableFeedbackTool)
-        {
-            builder.Services.AddSingleton<JsonlLogWriter>();
-        }
-
         if (resolvedOptions.EnableToolCallLogging)
         {
+            builder.Services.AddSingleton<JsonlLogWriter>();
             ToolCallLoggingHandler.Register(builder);
         }
 
         if (resolvedOptions.EnableFeedbackTool)
         {
+            builder.Services.AddSingleton<FeedbackJsonlLogWriter>();
             builder.WithTools<FeedbackTools>();
             builder.Services.AddSingleton<IPostConfigureOptions<McpServerOptions>,
                 ObservabilityPostConfigureOptions>();

@@ -17,6 +17,7 @@ internal sealed class DisabledObservabilityService : IMcpObservabilityService
     public string ServerName { get; }
     public string ServerVersion { get; }
     public string? CurrentLogFilePath => null;
+    public string? CurrentFeedbackLogFilePath => null;
     public int ProcessId { get; }
     public string InstanceId => string.Empty;
 
@@ -29,47 +30,9 @@ internal sealed class DisabledObservabilityService : IMcpObservabilityService
         var info = serverOptions?.Value?.ServerInfo;
         var hasInfoName = info is not null && !string.IsNullOrWhiteSpace(info.Name);
 
-        ServerName = ResolveServerName(options, info, hasInfoName);
-        ServerVersion = ResolveServerVersion(options, info, hasInfoName);
+        ServerName = ServerIdentityResolver.ResolveServerName(options, info, hasInfoName);
+        ServerVersion = ServerIdentityResolver.ResolveServerVersion(options, info, hasInfoName);
     }
 
     public Task FlushAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-    private static string ResolveServerName(
-        McpObservabilityOptions options,
-        Implementation? info,
-        bool hasInfoName)
-    {
-        if (!string.IsNullOrWhiteSpace(options.ServerName))
-        {
-            return options.ServerName;
-        }
-
-        if (hasInfoName)
-        {
-            return info!.Name;
-        }
-
-        return Assembly.GetEntryAssembly()?.GetName().Name
-            ?? ObservabilityConstants.UnknownServerName;
-    }
-
-    private static string ResolveServerVersion(
-        McpObservabilityOptions options,
-        Implementation? info,
-        bool hasInfoName)
-    {
-        if (!string.IsNullOrWhiteSpace(options.ServerVersion))
-        {
-            return options.ServerVersion;
-        }
-
-        if (hasInfoName)
-        {
-            return info!.Version ?? string.Empty;
-        }
-
-        return Assembly.GetEntryAssembly()?.GetName().Version?.ToString()
-            ?? string.Empty;
-    }
 }

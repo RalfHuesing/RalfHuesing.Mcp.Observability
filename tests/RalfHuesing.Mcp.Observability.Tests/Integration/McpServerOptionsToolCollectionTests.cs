@@ -121,7 +121,7 @@ public sealed class McpServerOptionsToolCollectionTests : IntegrationTestBase
         var text = result.Content?.OfType<TextContentBlock>().FirstOrDefault()?.Text;
         Assert.Equal(McpObservabilityOptions.DefaultFeedbackConfirmationMessage, text);
 
-        var writer = host.Services.GetRequiredService<JsonlLogWriter>();
+        var writer = host.Services.GetRequiredService<FeedbackJsonlLogWriter>();
         var lines = await ReadAllLinesSharedAsync(writer.FilePath, ct);
         var feedback = lines.Select(l => JsonDocument.Parse(l))
             .First(d => d.RootElement.GetProperty("recordType").GetString() == "feedback");

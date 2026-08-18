@@ -4,25 +4,24 @@ using System.Text.Json;
 namespace RalfHuesing.Mcp.Observability.Internal;
 
 /// <summary>
-/// Thread-safe JSONL writer for the current process instance file.
-/// One file per process: {ServerName}_{PID}_{InstanceId}.jsonl
-/// opened in append mode for the lifetime of the process.
+/// Thread-safe JSONL writer for process instance files.
+/// Opens the file stream lazily on first write in append mode for the lifetime of the process.
 /// Supports both synchronous and asynchronous disposal and explicit flushing.
 /// </summary>
 internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
 {
-    private readonly StreamWriter _writer;
+    private StreamWriter? _writer;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private int _disposalStarted;
 
     public JsonlLogWriter(ObservabilityContext context)
+        : this(context.LogFilePath)
     {
-        var dir = Path.GetDirectoryName(context.LogFilePath)!;
-        Directory.CreateDirectory(dir);
+    }
 
-        FilePath = context.LogFilePath;
-        var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-        _writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+    internal JsonlLogWriter(string filePath)
+    {
+        FilePath = filePath;
     }
 
     internal string FilePath { get; }
@@ -38,7 +37,8 @@ internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
                 return;
             }
 
-            _writer.WriteLine(json);
+            EnsureWriterInitialized();
+            _writer!.WriteLine(json);
         }
         finally
         {
@@ -51,7 +51,7 @@ internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
         await _operationGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (!IsDisposalStarted)
+            if (!IsDisposalStarted && _writer is not null)
             {
                 await _writer.FlushAsync(ct).ConfigureAwait(false);
             }
@@ -72,7 +72,7 @@ internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
         _operationGate.Wait();
         try
         {
-            _writer.Dispose();
+            _writer?.Dispose();
         }
         finally
         {
@@ -90,12 +90,29 @@ internal sealed class JsonlLogWriter : IDisposable, IAsyncDisposable
         await _operationGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _writer.DisposeAsync().ConfigureAwait(false);
+            if (_writer is not null)
+            {
+                await _writer.DisposeAsync().ConfigureAwait(false);
+            }
         }
         finally
         {
             _operationGate.Release();
         }
+    }
+
+    private void EnsureWriterInitialized()
+    {
+        if (_writer is not null)
+        {
+            return;
+        }
+
+        var dir = Path.GetDirectoryName(FilePath)!;
+        Directory.CreateDirectory(dir);
+
+        var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+        _writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
     }
 
     private bool IsDisposalStarted => Volatile.Read(ref _disposalStarted) != 0;

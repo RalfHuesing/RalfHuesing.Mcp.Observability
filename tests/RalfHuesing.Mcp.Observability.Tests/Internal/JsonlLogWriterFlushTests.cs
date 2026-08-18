@@ -10,6 +10,34 @@ namespace RalfHuesing.Mcp.Observability.Tests.Internal;
 public sealed class JsonlLogWriterFlushTests : TempDirectoryTestBase
 {
     [Fact]
+    public async Task FlushAsync_WhenNoWritesOccurred_DoesNotCreateFile()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
+        var context = new ObservabilityContext(options);
+
+        using var writer = new JsonlLogWriter(context);
+        await writer.FlushAsync(ct);
+
+        Assert.False(File.Exists(writer.FilePath));
+    }
+
+    [Fact]
+    public async Task DisposeAsync_WhenNoWritesOccurred_DoesNotCreateFile()
+    {
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
+        var context = new ObservabilityContext(options);
+        string logPath;
+
+        await using (var writer = new JsonlLogWriter(context))
+        {
+            logPath = writer.FilePath;
+        }
+
+        Assert.False(File.Exists(logPath));
+    }
+
+    [Fact]
     public async Task FlushAsync_FlushesPendingWritesToFile()
     {
         var ct = TestContext.Current.CancellationToken;

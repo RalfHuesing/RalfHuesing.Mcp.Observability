@@ -74,14 +74,20 @@ public sealed class McpFeedbackIntegrationTests : IntegrationTestBase
         var textContent = result.Content?.OfType<TextContentBlock>().FirstOrDefault()?.Text;
         Assert.Equal(options.FeedbackConfirmationMessage, textContent);
 
-        var writer = host.Services.GetRequiredService<JsonlLogWriter>();
-        Assert.True(File.Exists(writer.FilePath));
+        var obsService = host.Services.GetRequiredService<IMcpObservabilityService>();
+        Assert.NotNull(obsService.CurrentFeedbackLogFilePath);
+        Assert.True(File.Exists(obsService.CurrentFeedbackLogFilePath));
 
-        var lines = await ReadAllLinesSharedAsync(writer.FilePath, ct);
-        Assert.True(lines.Length >= 1);
+        // Tool log should not exist because only feedback was reported
+        if (obsService.CurrentLogFilePath is not null)
+        {
+            Assert.False(File.Exists(obsService.CurrentLogFilePath));
+        }
 
-        var feedbackLine = lines.Select(l => JsonDocument.Parse(l))
-            .First(d => d.RootElement.GetProperty("recordType").GetString() == "feedback");
+        var lines = await ReadAllLinesSharedAsync(obsService.CurrentFeedbackLogFilePath, ct);
+        Assert.Single(lines);
+
+        var feedbackLine = JsonDocument.Parse(lines[0]);
 
         var root = feedbackLine.RootElement;
         Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());

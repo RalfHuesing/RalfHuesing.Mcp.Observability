@@ -6,6 +6,36 @@ namespace RalfHuesing.Mcp.Observability.Tests.Internal;
 public sealed class JsonlLogWriterTests : TempDirectoryTestBase
 {
     [Fact]
+    public void Constructor_DoesNotCreateFileUntilFirstWrite()
+    {
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
+        var context = new ObservabilityContext(options);
+
+        using (var writer = new JsonlLogWriter(context))
+        {
+            Assert.False(File.Exists(writer.FilePath));
+        }
+
+        Assert.False(File.Exists(context.LogFilePath));
+    }
+
+    [Fact]
+    public void FeedbackJsonlLogWriter_UsesFeedbackLogFilePathAndWritesLazily()
+    {
+        var options = new McpObservabilityOptions { LogDirectory = TempDirectory };
+        var context = new ObservabilityContext(options);
+
+        using (var writer = new FeedbackJsonlLogWriter(context))
+        {
+            Assert.EndsWith(".feedback.jsonl", writer.FilePath, StringComparison.Ordinal);
+            Assert.False(File.Exists(writer.FilePath));
+
+            writer.WriteRecord(new { message = "feedback-record" });
+            Assert.True(File.Exists(writer.FilePath));
+        }
+    }
+
+    [Fact]
     public void WriteRecord_CreatesFileInSpecifiedDirectoryWithCorrectNaming()
     {
         var options = new McpObservabilityOptions

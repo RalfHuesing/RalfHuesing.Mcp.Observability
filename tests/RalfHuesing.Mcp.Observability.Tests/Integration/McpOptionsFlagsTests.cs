@@ -126,7 +126,12 @@ public sealed class McpOptionsFlagsTests : IntegrationTestBase
         };
         await client.CallToolAsync(feedbackParams, cancellationToken: ct);
 
-        var writer = host.Services.GetRequiredService<JsonlLogWriter>();
+        var obsService = host.Services.GetRequiredService<IMcpObservabilityService>();
+        Assert.Null(obsService.CurrentLogFilePath);
+        Assert.NotNull(obsService.CurrentFeedbackLogFilePath);
+        Assert.True(File.Exists(obsService.CurrentFeedbackLogFilePath));
+
+        var writer = host.Services.GetRequiredService<FeedbackJsonlLogWriter>();
         Assert.True(File.Exists(writer.FilePath));
 
         var lines = await ReadAllLinesSharedAsync(writer.FilePath, ct);

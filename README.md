@@ -169,6 +169,7 @@ public class StatusEndpoint(IMcpObservabilityService observability)
         observability.ServerName,
         observability.ServerVersion,
         observability.CurrentLogFilePath,
+        observability.CurrentFeedbackLogFilePath,
         observability.ProcessId,
         observability.InstanceId
     };
@@ -177,7 +178,7 @@ public class StatusEndpoint(IMcpObservabilityService observability)
 
 ## Lifecycle, Flushing & Testing
 
-`JsonlLogWriter` flushes writes to disk and is disposed when the host / `IServiceProvider` is disposed (`await host.StopAsync()` or `host.Dispose()`).
+`JsonlLogWriter` and `FeedbackJsonlLogWriter` open files lazily on the first write, flush writes to disk, and are disposed when the host / `IServiceProvider` is disposed (`await host.StopAsync()` or `host.Dispose()`).
 
 In unit tests or diagnostics tools where you want to ensure all pending records are flushed to disk before reading assertions, call `FlushAsync()` directly on `IMcpObservabilityService`:
 
@@ -186,7 +187,10 @@ var observability = host.Services.GetRequiredService<IMcpObservabilityService>()
 await observability.FlushAsync();
 
 // Now assert on file contents
-var lines = await File.ReadAllLinesAsync(observability.CurrentLogFilePath!);
+if (observability.CurrentLogFilePath is not null && File.Exists(observability.CurrentLogFilePath))
+{
+    var lines = await File.ReadAllLinesAsync(observability.CurrentLogFilePath);
+}
 ```
 
 ## Reading logs while the server is running
@@ -209,10 +213,13 @@ while (await reader.ReadLineAsync() is { } line)
 %LOCALAPPDATA%\RalfHuesing\McpObservability\
 └── {ServerName}\
     └── {yyyy-MM-dd}\
-        └── {ServerName}_{ProcessId}_{InstanceId}.jsonl
+        ├── {ServerName}_{ProcessId}_{InstanceId}.jsonl          # Tool-call log
+        └── {ServerName}_{ProcessId}_{InstanceId}.feedback.jsonl # Feedback reports (lazy creation)
 ```
 
-Example: `AiNetLinter\2026-08-17\AiNetLinter_18432_a1b2c3d4e5f67890.jsonl`
+Example:
+- `AiNetLinter\2026-08-17\AiNetLinter_18432_a1b2c3d4e5f67890.jsonl`
+- `AiNetLinter\2026-08-17\AiNetLinter_18432_a1b2c3d4e5f67890.feedback.jsonl` (created only when feedback was reported)
 
 ## JSONL record format
 

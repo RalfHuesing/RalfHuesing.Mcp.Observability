@@ -39,10 +39,16 @@ public interface IMcpObservabilityService
 
     /// <summary>
     /// Absolute path to the JSONL file the current process is writing to.
-    /// <c>null</c> when neither <c>EnableToolCallLogging</c> nor
-    /// <c>EnableFeedbackTool</c> is enabled (no log file is opened).
+    /// <c>null</c> when <c>EnableToolCallLogging</c> is false or observability is disabled.
     /// </summary>
     string? CurrentLogFilePath { get; }
+
+    /// <summary>
+    /// Absolute path to the feedback JSONL file (<c>*.feedback.jsonl</c>) the current process writes feedback reports to.
+    /// <c>null</c> when <c>EnableFeedbackTool</c> is false or observability is disabled.
+    /// Note: The file itself is created lazily on the first feedback report.
+    /// </summary>
+    string? CurrentFeedbackLogFilePath { get; }
 
     /// <summary>
     /// Operating-system process identifier of the current process. Stable

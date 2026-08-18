@@ -22,12 +22,16 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
     public string InstanceId { get; }
 
     /// <summary>
-    /// Eagerly computed absolute path to the JSONL log file for this process.
-    /// Independent of whether <c>EnableToolCallLogging</c> or
-    /// <c>EnableFeedbackTool</c> is enabled; the gating happens in
-    /// <see cref="CurrentLogFilePath"/>.
+    /// Eagerly computed absolute path to the tool-call JSONL log file for this process.
+    /// Gating happens in <see cref="CurrentLogFilePath"/>.
     /// </summary>
     internal string LogFilePath { get; }
+
+    /// <summary>
+    /// Eagerly computed absolute path to the feedback JSONL log file for this process.
+    /// Gating happens in <see cref="CurrentFeedbackLogFilePath"/>.
+    /// </summary>
+    internal string FeedbackLogFilePath { get; }
 
     internal McpObservabilityOptions Options { get; }
 
@@ -44,9 +48,11 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
         var info = serverOptions?.Value?.ServerInfo;
         var hasInfoName = info is not null && !string.IsNullOrWhiteSpace(info.Name);
 
-        ServerName = ResolveServerName(options, info, hasInfoName);
-        ServerVersion = ResolveServerVersion(options, info, hasInfoName);
-        LogFilePath = ResolveLogFilePath(options, ServerName, ProcessId, InstanceId);
+        ServerName = ServerIdentityResolver.ResolveServerName(options, info, hasInfoName);
+        ServerVersion = ServerIdentityResolver.ResolveServerVersion(options, info, hasInfoName);
+        var (logPath, feedbackPath) = ResolveLogFilePaths(options, ServerName, ProcessId, InstanceId);
+        LogFilePath = logPath;
+        FeedbackLogFilePath = feedbackPath;
     }
 
     /// <inheritdoc />
@@ -54,7 +60,11 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
 
     /// <inheritdoc />
     public string? CurrentLogFilePath =>
-        (Options.Enabled && (Options.EnableToolCallLogging || Options.EnableFeedbackTool)) ? LogFilePath : null;
+        (Options.Enabled && Options.EnableToolCallLogging) ? LogFilePath : null;
+
+    /// <inheritdoc />
+    public string? CurrentFeedbackLogFilePath =>
+        (Options.Enabled && Options.EnableFeedbackTool) ? FeedbackLogFilePath : null;
 
     /// <inheritdoc />
     public async Task FlushAsync(CancellationToken cancellationToken = default)
@@ -64,47 +74,15 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
         {
             await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        var feedbackWriter = _services?.GetService<FeedbackJsonlLogWriter>();
+        if (feedbackWriter is not null)
+        {
+            await feedbackWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
-    private static string ResolveServerName(
-        McpObservabilityOptions options,
-        Implementation? info,
-        bool hasInfoName)
-    {
-        if (!string.IsNullOrWhiteSpace(options.ServerName))
-        {
-            return options.ServerName;
-        }
-
-        if (hasInfoName)
-        {
-            return info!.Name;
-        }
-
-        return Assembly.GetEntryAssembly()?.GetName().Name
-            ?? ObservabilityConstants.UnknownServerName;
-    }
-
-    private static string ResolveServerVersion(
-        McpObservabilityOptions options,
-        Implementation? info,
-        bool hasInfoName)
-    {
-        if (!string.IsNullOrWhiteSpace(options.ServerVersion))
-        {
-            return options.ServerVersion;
-        }
-
-        if (hasInfoName)
-        {
-            return info!.Version ?? string.Empty;
-        }
-
-        return Assembly.GetEntryAssembly()?.GetName().Version?.ToString()
-            ?? string.Empty;
-    }
-
-    private static string ResolveLogFilePath(
+    private static (string LogFilePath, string FeedbackLogFilePath) ResolveLogFilePaths(
         McpObservabilityOptions options,
         string serverName,
         int processId,
@@ -122,7 +100,9 @@ internal sealed class ObservabilityContext : IMcpObservabilityService
             CultureInfo.InvariantCulture);
         var dir = Path.Combine(root, serverName, dateFolder);
 
-        var fileName = $"{serverName}_{processId}_{instanceId}.jsonl";
-        return Path.Combine(dir, fileName);
+        var logFileName = $"{serverName}_{processId}_{instanceId}.jsonl";
+        var feedbackFileName = $"{serverName}_{processId}_{instanceId}.feedback.jsonl";
+
+        return (Path.Combine(dir, logFileName), Path.Combine(dir, feedbackFileName));
     }
 }
