@@ -4,7 +4,7 @@ globs: *.cs
 alwaysApply: true
 ---
 # C#-Codequalität (AiNetLinter)
-Auto-generiert durch AiNetLinter 1.0.98 aus `RalfHuesing.Mcp.Observability.rules.json`. Neuen Produktionscode direkt konform schreiben.
+Auto-generiert durch AiNetLinter 1.0.121 aus `RalfHuesing.Mcp.Observability.rules.json`. Neuen Produktionscode direkt konform schreiben.
 
 ## Kurz-Stil
 - `sealed` für konkrete Klassen.
@@ -16,11 +16,11 @@ Auto-generiert durch AiNetLinter 1.0.98 aus `RalfHuesing.Mcp.Observability.rules
 
 ## Grenzwerte (Produktion)
 | Regel | Limit | Praxis |
-| :--- | :---: | :--- |
+|:---|:---:|:---|
 | `MaxLineCount` | **300** | Datei splitten wenn sie wächst. |
 | `MaxMethodLineCount` | **60** | Eine Aufgabe pro Methode; Rest extrahieren. |
 | `MaxMethodParameterCount` | **4** | Ab Überschreitung: `record` als Parameter-Object. |
-| `MaxCyclomaticComplexity` | **10** | Weniger `if`/`switch`/`&&`/`||` pro Methode (McCabe). |
+| `MaxCyclomaticComplexity` | **10** | Weniger `if`/`switch`/`&&`/`\|\|` pro Methode (McCabe). |
 | `MaxCognitiveComplexity` | **12** | Weniger Verschachtelung; Early Return bevorzugen (kognitiv). |
 | `MaxInheritanceDepth` | **3** | Komposition vor Vererbung. |
 | `MaxMethodOverloads` | **4** | Methoden mit eindeutigen Namen bevorzugen. |
@@ -46,7 +46,7 @@ Auto-generiert durch AiNetLinter 1.0.98 aus `RalfHuesing.Mcp.Observability.rules
 Folgende Regeln gelten mit relaxiertem Limit wenn alle Bedingungen erfüllt sind:
 
 | Regel | Bedingung | Effektives Limit | Severity | Grund |
-|:--|:--|:--|:--|:--|
+|:---|:---|:---|:---|:---|
 | `MaxMethodLineCount` | CyclomaticComplexity ≤ 3 AND CognitiveComplexity ≤ 5 | **120** | `warning` | Flat initialization and builder methods are semantically simple; LOC at CC≤3 is not correlated with defect density (Palomba et al., 2018). |
 
 ## agent-resilience

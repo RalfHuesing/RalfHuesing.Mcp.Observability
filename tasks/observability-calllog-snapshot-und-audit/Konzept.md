@@ -1,0 +1,533 @@
+---
+status: ready
+type: konzept
+project_kind: brownfield
+estimated_scope: medium
+priority: P1
+rules_dir: .agents/rules
+last_updated: 2026-08-21
+open_questions: []
+---
+
+# Zielbild: Runtime-Snapshot und generische Call-Log-Auswertung
+
+## Kurzfassung und Entscheidung
+
+Die aktuelle Auswertung in AiNetLinter ist ein sinnvoller, aber bewusst lokaler
+Workaround. Das Observability-Paket schreibt die JSONL-Daten bereits zentral,
+stellt aber noch keinen wiederverwendbaren Live-Snapshot und keinen öffentlichen
+Reader/Aggregator für diese Daten bereit. AiNetLinter muss deshalb für
+`get_server_health` und `--analyze-mcp-log` eigene JSONL-Dateien lesen, parsen und
+aggregieren.
+
+Diese beiden generischen Fähigkeiten sollten in
+`RalfHuesing.Mcp.Observability` entstehen. Dadurch erhalten alle MCP-Server
+dieselbe Semantik für Zähler, Fehlerresultate, Tool-Verteilungen,
+Unvollständigkeit und laufende Dateien. Der MCP-Server selbst soll weiterhin
+für die fachliche Darstellung und serverbezogene Heuristiken verantwortlich
+bleiben.
+
+Der jetzige AiNetLinter-Code bleibt bis zur Veröffentlichung einer passenden
+Paketversion bestehen. Danach wird er auf eine dünne Adapter-Schicht reduziert;
+die lokale Parser-/Aggregator-Implementierung kann dann entfallen.
+
+## Was derzeit in AiNetLinter kompensiert wird
+
+Die Version 1.0.3 des Pakets stellt über `IMcpObservabilityService` derzeit
+folgende Informationen bereit:
+
+- Aktivierungsstatus und Servermetadaten
+- Pfade der aktuellen Tool-Call- und Feedback-Logdateien
+- Prozess-ID und `instanceId`
+- `FlushAsync`
+
+Es gibt dort noch keine API für:
+
+- die Anzahl der Tool-Calls oder Fehlerresultate im laufenden Prozess,
+- die Verteilung der Aufrufe nach Tool,
+- einen unveränderlichen Snapshot für Health-/Diagnose-Tools,
+- das Lesen und Aggregieren einer noch geöffneten JSONL-Datei,
+- die Erkennung beschädigter oder unvollständiger Zeilen,
+- eine deterministische Auswertung mehrerer Prozessdateien.
+
+Genau diese Lücken füllt der aktuelle AiNetLinter-Code lokal. Das ist kein
+fachlicher Fehler im Server, sondern eine fehlende gemeinsame Paketabstraktion.
+Die Doppelimplementierung ist jedoch langfristig Drift-Risiko: Schemaänderungen
+müssten im Paket und im AiNetLinter-Parser synchron angepasst werden.
+
+## Verantwortungsgrenze
+
+| Fähigkeit | Zielverantwortung | Begründung |
+| --- | --- | --- |
+| JSONL-Schema, Schreiben und Dateinamen | Observability-Paket | Gemeinsamer Vertrag aller MCP-Server |
+| Prozess-/Instanzmetadaten | Observability-Paket | Wird beim Schreiben ohnehin zentral erzeugt |
+| Laufende Zähler und unveränderlicher Snapshot | Observability-Paket | Muss dieselben Events wie der Writer sehen |
+| Generischer JSONL-Reader und Aggregator | Observability-Paket | Wiederverwendbare Offline-Diagnose |
+| Reader für noch geöffnete Dateien | Observability-Paket | Die Paketdateien werden mit `FileShare.ReadWrite` geschrieben |
+| Behandlung/Anzahl ungültiger JSONL-Zeilen | Observability-Paket | Generische Datenqualität des eigenen Formats |
+| Health-Text und `structuredContent` | AiNetLinter bzw. jeweiliger MCP-Server | Server-spezifische Darstellung und API-Vertrag |
+| CLI-Optionen und Ausgabeformat `text`/`json` | AiNetLinter | Gehört zur Host-CLI, nicht in das allgemeine Paket |
+| `[ERROR]: CODE:`-Interpretation | AiNetLinter | Aktuelles server-/projektbezogenes Fehlerschema |
+| Loading-/Startup-Marker | AiNetLinter | Heuristik des AiNetLinter-Startups, kein MCP-Standard |
+| Feedback- und Tool-Ausschlüsse | Paket liefert Metadaten; Host entscheidet | Das Paket kennt die Records, der Host kennt seine Auswertung |
+| MCP-Query-Tool, HTTP-Endpunkt oder Logserver | Nicht Teil dieses Vorhabens | Widerspricht der bewusst kleinen Paketverantwortung |
+
+Wichtig ist die Unterscheidung zwischen **Audit als Bibliotheksfähigkeit** und
+**Audit als Produktfunktion**: Das Paket sollte Datenqualität und generische
+Aggregationen liefern. Es sollte nicht selbst ein MCP-Audit-Tool oder einen
+zentralen Query-Service veröffentlichen. Jeder Server kann daraus seine eigene
+Health-/Diagnosefunktion bauen.
+
+## Zielarchitektur
+
+Die zentrale Abstraktion ist ein gemeinsamer Abschluss eines Tool-Call-Events:
+
+```text
+ToolCallLoggingHandler
+        |
+        +--> ObservabilityRuntimeState.Record(record)
+        |          |
+        |          +--> IMcpObservabilityService.Snapshot
+        |
+        +--> JsonlLogWriter.WriteRecord(record)
+        |
+        +--> optional: generischer McpLogAnalyzer für bestehende Dateien
+```
+
+Der Runtime-Snapshot und der Offline-Analyzer dürfen nicht zwei verschiedene
+Semantiken entwickeln. Beide müssen aus demselben `ToolCallRecord`-Vertrag
+arbeiten. Der Snapshot ist eine schnelle Prozesssicht; der Analyzer ist eine
+nachträgliche Dateisicht und kann zusätzlich mehrere Dateien, beschädigte
+Zeilen und getrennte Prozessinstanzen auswerten.
+
+Empfohlene Schichten im Paket:
+
+1. **Runtime collection** – interne, thread-sichere Zähler im selben
+   Abschluss-Event wie das JSONL-Schreiben.
+2. **Public diagnostics** – unveränderliche, öffentliche Snapshot-Typen über
+   `IMcpObservabilityService`.
+3. **Offline analysis** – öffentlicher, synchroner Reader/Aggregator für
+   einzelne Dateien, Verzeichnisse oder explizite Dateilisten.
+4. **Consumer adapter** – Health-Tools, CLI und projektbezogene Heuristiken in
+   den jeweiligen MCP-Servern.
+
+## Vorgeschlagene öffentliche API
+
+Die folgenden Typen sind additive API-Erweiterungen. Sie sollten erst mit einer
+neuen Minor-Version veröffentlicht werden, wenn die Semantik durch Tests und
+Dokumentation festgeschrieben ist. Die bestehenden Einstiegspunkte
+`McpObservabilityOptions`, `WithObservability`, `IMcpObservabilityService` und
+`McpObservabilityTools` bleiben erhalten.
+
+Die aktuellen Paketregeln begrenzen die öffentliche API bewusst auf diese
+Einstiegspunkte. Die hier vorgeschlagenen Snapshot-/Analysis-Typen sind daher
+eine explizite, zu begründende Erweiterung dieser Regel und keine stillschweigende
+Freigabe interner Implementierungsdetails. Bei der Umsetzung müssen die
+Paketregeln, API-Dokumentation und SemVer-Entscheidung gemeinsam aktualisiert
+werden. Falls diese Erweiterung nicht gewünscht ist, bleibt der Analyzer intern
+und wird stattdessen in ein separates, optionales Analysis-Paket ausgelagert;
+für die Ablösung des AiNetLinter-Workarounds ist aber eine konsumierbare
+Daten-API erforderlich.
+
+### 1. Live-Snapshot
+
+```csharp
+using System.Collections.ObjectModel;
+using System.Globalization;
+
+namespace RalfHuesing.Mcp.Observability;
+
+/// <summary>
+/// Immutable process-local counters collected by the observability pipeline.
+/// </summary>
+public sealed record McpObservabilitySnapshot(
+    int ToolCallCount,
+    int FailedCallCount,
+    int ErrorResultCount,
+    int ResponseTruncatedCount,
+    long TotalDurationMilliseconds,
+    IReadOnlyDictionary<string, int> CallsByTool,
+    DateTimeOffset? FirstCallUtc,
+    DateTimeOffset? LastCallUtc)
+{
+    public static McpObservabilitySnapshot Empty { get; } = new(
+        ToolCallCount: 0,
+        FailedCallCount: 0,
+        ErrorResultCount: 0,
+        ResponseTruncatedCount: 0,
+        TotalDurationMilliseconds: 0,
+        CallsByTool: new ReadOnlyDictionary<string, int>(
+            new Dictionary<string, int>(StringComparer.Ordinal)),
+        FirstCallUtc: null,
+        LastCallUtc: null);
+}
+```
+
+`FailedCallCount` beschreibt `success == false` und deckt damit Exceptions ab.
+`ErrorResultCount` beschreibt ein MCP-Ergebnis mit `isError == true`. Die
+Trennung ist wichtig, weil ein Server ein fachliches Fehlerresultat liefern
+kann, ohne dass die Handler-Ausführung eine Exception wirft.
+
+Die bestehende Schnittstelle sollte additiv erweitert werden:
+
+```csharp
+public interface IMcpObservabilityService
+{
+    // Bestehende Mitglieder bleiben unverändert.
+    McpObservabilitySnapshot Snapshot { get; }
+}
+```
+
+Die Implementierung muss bei jedem Zugriff eine unveränderliche Sicht liefern.
+Insbesondere darf ein Consumer weder das interne Dictionary mutieren noch die
+Zähler während einer laufenden Aktualisierung beobachten können. Der Snapshot
+des deaktivierten Services ist immer `McpObservabilitySnapshot.Empty`.
+
+### 2. Thread-sicherer interner Zustand
+
+Der Zustand sollte nicht aus der aktuellen Datei zurückgelesen werden. Das
+würde bei jedem Health-Aufruf I/O verursachen und bei einer gerade geschriebenen
+Zeile unnötige Race-Conditions erzeugen. Ein möglicher interner Baustein:
+
+```csharp
+internal sealed class ObservabilityRuntimeState
+{
+    private readonly object _gate = new();
+    private readonly Dictionary<string, int> _callsByTool = new(StringComparer.Ordinal);
+    private int _toolCallCount;
+    private int _failedCallCount;
+    private int _errorResultCount;
+    private int _responseTruncatedCount;
+    private long _totalDurationMilliseconds;
+    private DateTimeOffset? _firstCallUtc;
+    private DateTimeOffset? _lastCallUtc;
+
+    internal void Record(ToolCallRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        lock (_gate)
+        {
+            _toolCallCount++;
+            if (!record.Success)
+            {
+                _failedCallCount++;
+            }
+
+            if (record.IsErrorResult)
+            {
+                _errorResultCount++;
+            }
+
+            if (record.ResponseTruncated)
+            {
+                _responseTruncatedCount++;
+            }
+
+            _totalDurationMilliseconds += record.DurationMs;
+            _callsByTool[record.ToolName] =
+                _callsByTool.GetValueOrDefault(record.ToolName) + 1;
+
+            var timestamp = DateTimeOffset.Parse(
+                record.Timestamp,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
+            _firstCallUtc ??= timestamp;
+            _lastCallUtc = timestamp;
+        }
+    }
+
+    internal McpObservabilitySnapshot CreateSnapshot()
+    {
+        lock (_gate)
+        {
+            return new McpObservabilitySnapshot(
+                _toolCallCount,
+                _failedCallCount,
+                _errorResultCount,
+                _responseTruncatedCount,
+                _totalDurationMilliseconds,
+                new ReadOnlyDictionary<string, int>(
+                    new Dictionary<string, int>(_callsByTool, StringComparer.Ordinal)),
+                _firstCallUtc,
+                _lastCallUtc);
+        }
+    }
+}
+```
+
+Der konkrete Code muss an die vorhandenen Record-Typen und die geltenden
+Analyzer-Regeln angepasst werden. Die wesentlichen Eigenschaften sind der
+gemeinsame Event-Punkt, `StringComparer.Ordinal`, ein konsistenter Lock und
+eine Kopie des Dictionaries beim Snapshot.
+
+Der `ToolCallLoggingHandler` sollte nach der Erstellung des Records genau
+einmal `runtimeState.Record(record)` auslösen. Die bestehende Filterung des
+Feedback-Tools bleibt dabei erhalten, damit der Health-Aufruf nicht durch
+seine eigene Auswertung in die Zähler hineinrutscht.
+
+### 3. Wiederverwendbarer Offline-Analyzer
+
+Für die spätere Ablösung des AiNetLinter-Workarounds sollte das Paket außerdem
+eine kleine Daten-API anbieten. Sie liefert Daten, keine formatierten
+MCP-Antworten und keine CLI:
+
+```csharp
+namespace RalfHuesing.Mcp.Observability.Analysis;
+
+public sealed record McpLogAnalysisOptions
+{
+    public bool Recursive { get; init; } = true;
+    public bool IncludeFeedbackRecords { get; init; }
+    public bool IgnoreMalformedLines { get; init; } = true;
+    public int MaxMalformedLineDetails { get; init; } = 100;
+}
+
+public sealed record McpLogSessionSummary(
+    string FilePath,
+    int ProcessId,
+    string InstanceId,
+    int ToolCallCount,
+    DateTimeOffset? FirstCallUtc,
+    DateTimeOffset? LastCallUtc);
+
+public sealed record McpLogAnalysisReport(
+    IReadOnlyList<string> InputFiles,
+    int ToolCallCount,
+    int FailedCallCount,
+    int ErrorResultCount,
+    int ResponseTruncatedCount,
+    int MalformedLineCount,
+    int IgnoredRecordCount,
+    long TotalDurationMilliseconds,
+    IReadOnlyDictionary<string, int> CallsByTool,
+    IReadOnlyList<McpLogSessionSummary> Sessions,
+    IReadOnlyList<string> MalformedLineDetails);
+
+public static class McpLogAnalyzer
+{
+    public static McpLogAnalysisReport Analyze(
+        IEnumerable<string> inputPaths,
+        McpLogAnalysisOptions? options = null);
+}
+```
+
+Die endgültige Signatur sollte vor der Implementierung noch auf die gewünschte
+Datei-/Verzeichnis-/Glob-Semantik festgelegt werden. Eine explizite
+`IEnumerable<string>`-Dateiliste ist für andere MCP-Server am stabilsten; eine
+separate `McpLogFileDiscovery`-API kann später Komfort für Verzeichnisse und
+Globs ergänzen. Der Analyzer muss:
+
+- geöffnete Dateien mit `FileShare.ReadWrite` lesen können,
+- Feedbackdateien standardmäßig ausschließen,
+- deterministisch sortierte Inputdateien und Toolschlüssel liefern,
+- ungültige Zeilen zählen und optional begrenzte Diagnosedetails liefern,
+- unbekannte additive Record-Felder ignorieren,
+- fehlende Pflichtfelder als ungültigen Record behandeln,
+- keine Exceptions durch einzelne unvollständig geschriebene Zeilen erzeugen,
+- `schemaVersion`, `recordType`, `processId` und `instanceId` validieren,
+- die vorhandenen Prozess-/Instanzgrenzen in `Sessions` erhalten.
+
+`IgnoreMalformedLines` darf nicht dazu führen, dass Fehler unsichtbar werden:
+`MalformedLineCount` ist immer Teil des Reports. Wenn die Option `false` ist,
+wirft die API eine dokumentierte, typisierte Ausnahme mit Dateipfad und
+Zeilennummer. Ein unbeschränkter Dump von Zeileninhalten ist zu vermeiden, da
+diese Argumente oder Response-Daten enthalten können.
+
+Der Analyzer soll keine Ausgabeformatierung kennen. Markdown, JSON für die
+CLI, Exit-Codes und die konkrete Struktur eines `get_server_health`-Ergebnisses
+bleiben beim Consumer.
+
+### 4. Fehlersemantik nicht vorschnell verallgemeinern
+
+Der aktuelle AiNetLinter-Analyzer extrahiert Fehlercodes aus einem Textmuster
+wie `[ERROR]: CODE:`. Dieses Muster ist kein Bestandteil des allgemeinen
+Observability-Vertrags und sollte nicht in das Paket wandern.
+
+Das Paket sollte zunächst nur die bereits vorhandenen generischen Felder
+aggregieren:
+
+- `success` bzw. fehlgeschlagene Ausführung,
+- `isErrorResult`,
+- optional gekürzte `errorMessage`-Information,
+- Response-Truncation.
+
+Wenn mehrere MCP-Server einen strukturierten Fehlercode benötigen, sollte das
+JSONL-Schema später additiv um ein optionales `errorCode`-Feld erweitert werden.
+Die Erzeugung dieses Feldes muss dann an einen stabilen MCP-/Server-Vertrag
+gebunden werden; ein heuristischer Regex im Basispaket wäre die falsche
+Abstraktion.
+
+Ebenso bleiben Loading-/Startup-Marker, Vollständigkeitsmarker und
+serverbezogene Recovery-Hinweise zunächst außerhalb des Pakets. Falls sich
+dieselben Anforderungen in mindestens zwei unabhängigen MCP-Servern wiederholen,
+kann dafür eine kleine, explizit konfigurierte Klassifikations-API entworfen
+werden. Bis dahin verhindert die Trennung, dass AiNetLinter-Heuristiken in ein
+allgemeines Paket durchsickern.
+
+## Konkrete Anpassung am bestehenden Paket
+
+### `ObservabilityContext`
+
+Der Context sollte intern eine Singleton-Instanz von `ObservabilityRuntimeState`
+halten und deren Snapshot weiterreichen:
+
+```csharp
+internal sealed class ObservabilityContext : IMcpObservabilityService
+{
+    private readonly ObservabilityRuntimeState _runtimeState;
+
+    public McpObservabilitySnapshot Snapshot => _runtimeState.CreateSnapshot();
+}
+```
+
+Die Konstruktorverkettung und DI-Registrierung müssen so angepasst werden, dass
+pro MCP-Server-Prozess genau ein Zustand verwendet wird. Die Paketdatei bleibt
+die Persistenz, der Runtime-State ist nur ein schneller Prozess-Snapshot und
+muss beim Start leer sein.
+
+### `ToolCallLoggingHandler`
+
+Die Record-Erstellung bleibt die einzige Quelle für beide Sichten:
+
+```csharp
+var record = CreateRecord(...);
+runtimeState.Record(record);
+logWriter.WriteRecord(record);
+```
+
+Die Reihenfolge und das Fehlerverhalten sind mit Tests zu fixieren. Besonders
+zu entscheiden ist, ob ein Schreibfehler den MCP-Call weiterhin fehlschlagen
+lässt oder nur die Persistenz als Diagnosefehler markiert. Die Entscheidung
+muss mit der bestehenden Paketsemantik kompatibel sein und darf nicht durch
+einen stillen `catch` verdeckt werden.
+
+### JSONL-Vertrag
+
+Die Record-Eigenschaften sollten für den Analyzer nicht über mehrfach kopierte
+String-Literale beschrieben werden. Ein interner Schema-Contract oder
+serializerbasierter Zugriff soll die Feldnamen zentralisieren. Dabei bleiben
+die bestehenden Regeln gültig:
+
+- `schemaVersion` bleibt `1`, solange nur additive Felder hinzukommen.
+- `timestamp` bleibt UTC.
+- `recordType` bleibt `tool_call` oder `feedback`.
+- unbekannte additive Felder werden beim Lesen ignoriert.
+- eine Breaking Change erfordert eine Major-Version.
+
+Die JSONL-Dateien bleiben weiterhin append-only und menschenlesbar. Es wird
+keine Datenbank und kein Server-seitiger Log-Query-Endpunkt eingeführt.
+
+## Migration von AiNetLinter
+
+Die Migration sollte in einem separaten AiNetLinter-Task erfolgen, nachdem eine
+Paketversion mit den neuen APIs verfügbar ist:
+
+1. AiNetLinter aktualisiert die Paketreferenz.
+2. `GetServerHealthTool` liest `IMcpObservabilityService.Snapshot` für die
+   schnelle aktuelle Prozesssicht.
+3. `--analyze-mcp-log` verwendet `McpLogAnalyzer` und behält nur
+   `McpLogReportFormatter`, CLI-Optionen und AiNetLinter-spezifische Heuristiken.
+4. Die lokalen Typen unter `src/AiNetLinter/Observability/` werden schrittweise
+   entfernt, sobald keine Referenzen mehr bestehen.
+5. Bestehende JSON-/Text-Ausgaben und Health-Tests bleiben als Kompatibilitäts-
+   vertrag des AiNetLinter erhalten.
+
+Bis dahin ist der lokale Code absichtlich nicht anzupassen. Er dient als
+Referenzimplementierung für die Tests des Pakets und macht die aktuell
+fehlenden Anforderungen konkret.
+
+## Testkonzept
+
+### Runtime-Snapshot
+
+- leerer Snapshot direkt nach der Registrierung,
+- ein erfolgreicher Tool-Call erhöht `ToolCallCount`, Dauer und Tool-Zähler,
+- Exception erhöht `FailedCallCount`,
+- `isError == true` erhöht `ErrorResultCount`, aber nicht zwingend
+  `FailedCallCount`,
+- gekürzte Response erhöht `ResponseTruncatedCount`,
+- mehrere Tools werden ordinal und deterministisch aggregiert,
+- parallele Calls verlieren keine Inkremente,
+- zwei aufeinanderfolgende Snapshots teilen keine mutierbare Collection,
+- Feedback-Tools werden nicht als normale Tool-Calls gezählt,
+- deaktivierte Observability liefert den leeren Snapshot.
+
+### Offline-Analyzer
+
+- eine gültige Datei mit mehreren Tools,
+- mehrere Dateien aus unterschiedlichen Prozessen und `instanceId`s,
+- geöffnete Datei während eines Schreibvorgangs,
+- abschließende unvollständige JSONL-Zeile,
+- ungültige JSON-Zeile zwischen gültigen Records,
+- unbekannte additive Felder,
+- falsche oder fehlende `schemaVersion`/`recordType`,
+- Feedbackdatei standardmäßig ausgeschlossen und optional einschließbar,
+- deterministische Reihenfolge der Dateien, Sessions und Toolschlüssel,
+- Begrenzung von `MalformedLineDetails`,
+- keine Ausgabe sensibler Argumente oder Responses in Fehlermeldungen.
+
+### Integration und Dokumentation
+
+- Minimaler MCP-Server mit zwei erfolgreichen Calls und einem Fehlerresultat,
+- Auflösung des öffentlichen `IMcpObservabilityService` aus DI,
+- Snapshot und JSONL-Report müssen dieselben generischen Zahlen liefern,
+- `dotnet build` ohne Warnungen,
+- Fast- und Integrationstests gemäß Repository-Regeln,
+- README und öffentliche API-Dokumentation aktualisieren,
+- SemVer-Entscheidung und JSONL-Schemaänderungen dokumentieren.
+
+## Rollout in Etappen
+
+### Phase 1: Runtime-Snapshot
+
+`McpObservabilitySnapshot`, interne Runtime-Zähler und die additive Erweiterung
+von `IMcpObservabilityService` implementieren. Dies liefert sofort Nutzen für
+alle Server, ohne Dateiparsing oder neue Abhängigkeiten.
+
+### Phase 2: Generischer Reader/Aggregator
+
+Reader, Discovery und Aggregation aus dem AiNetLinter-Workaround als
+paketinterne bzw. öffentliche Daten-API überführen. Malformed-Line-Diagnostik
+und FileShare-Verhalten dabei ausdrücklich testen.
+
+### Phase 3: AiNetLinter umstellen
+
+Paketreferenz aktualisieren, lokale Doppelimplementierung entfernen und nur
+serverbezogene Ausgabe/Heuristiken behalten. Die Ausgaben müssen vor und nach
+der Migration mit Golden-/Integrationstests vergleichbar bleiben.
+
+### Phase 4: Weitere MCP-Server integrieren
+
+Mindestens ein weiterer MCP-Server sollte den Snapshot konsumieren. Erst wenn
+mehrere Consumer denselben zusätzlichen Bedarf zeigen, werden weitere
+Abstraktionen wie strukturierte Error-Codes oder konfigurierbare Marker
+aufgenommen.
+
+## Definition of Done
+
+- Jeder MCP-Server kann ohne Dateilesen einen konsistenten Live-Snapshot
+  abfragen.
+- Ein generischer Analyzer kann Paket-JSONL-Dateien sicher und deterministisch
+  auswerten, auch wenn sie gerade geschrieben werden.
+- AiNetLinter muss nach der Migration keinen eigenen JSONL-Parser und keinen
+  generischen Aggregator mehr pflegen.
+- Server-spezifische Health-Darstellung, CLI und Heuristiken bleiben außerhalb
+  des Pakets.
+- Es gibt keine neue Datenbank, keinen HTTP-/MCP-Logquery-Service und keine
+  unnötige Plugin-Abstraktion.
+- Schema-, API-, Datenschutz- und SemVer-Dokumentation sind aktualisiert.
+- Build, relevante Tests sowie der paketweite Abschlusslauf sind grün und
+  warnungsfrei.
+- Vor dem Paket-Commit sind Duplicate-, Magic-Value-, Dead-Code- und
+  Violation-Audits durchgeführt; echte Befunde sind behoben oder dokumentiert.
+
+## Offene Architekturentscheidung für die Umsetzung
+
+Vor Phase 2 ist festzulegen, ob der Offline-Analyzer als Teil des bestehenden
+Hauptpakets oder als separates Paket ausgeliefert wird. Empfehlung: zunächst im
+bestehenden Paket als Namespace `RalfHuesing.Mcp.Observability.Analysis`, weil
+Reader und Schema unmittelbar zusammengehören und keine zusätzliche
+Versions-/Abhängigkeitsmatrix entstehen soll. Falls ein Consumer später nur den
+Reader ohne Runtime-Integration benötigt, kann daraus mit wenig Aufwand ein
+separates Paket extrahiert werden.

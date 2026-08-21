@@ -61,3 +61,11 @@ When modifying or adding overrides to `RalfHuesing.Mcp.Observability.rules.json`
   Test methods often contain arrange-act-assert blocks with setup data, mock initialization, and multiple assertions that reasonably exceed 60 lines. Test classes are generally not inherited and do not require mandatory `sealed` modifiers.
 - **Considered Alternatives:**
   Overly fragmented test helper methods reduce readability of test specifications.
+
+### [2026-08-21] AiNetLinter structural duplicate thresholds
+
+- **Scope / Target:** `RalfHuesing.Mcp.Observability.rules.json` duplicate-analysis settings
+- **Previous Value:** Structural duplicate thresholds were absent from the compatibility configuration.
+- **New Value:** `StructuralDuplicateExactThreshold: 0.9`, `StructuralDuplicateNearThreshold: 0.8`, `StructuralDuplicateFuzzyThreshold: 0.7`
+- **Reason & Architecture Context:** The current AiNetLinter schema exposes structural duplicate analysis. The package's dogfood configuration must carry explicit defaults so the generated agent rules and the compatibility audit remain reproducible.
+- **Considered Alternatives:** Leaving the keys absent would rely on executable-version defaults and allow the package's checked-in configuration to drift from the generated rule contract.
