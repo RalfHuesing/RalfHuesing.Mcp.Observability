@@ -1,12 +1,17 @@
 ---
-status: ready
+status: draft
 type: konzept
 project_kind: brownfield
 estimated_scope: medium
 priority: P1
 rules_dir: .agents/rules
-last_updated: 2026-08-21
-open_questions: []
+last_updated: 2026-08-22
+open_questions:
+  - Soll das Paket-Repo ein generisches Analyse-CLI (dotnet tool) erhalten, damit nicht jeder MCP-Server eigene CLI-Optionen implementieren muss?
+  - Falls ja: Verteilungsform des CLIs — dotnet tool, eigenständige exe oder beides?
+  - Gehört ein optionales opt-in MCP-Audit-Tool (analog FeedbackTools-Vorbild) in den Scope, oder Non-Goal nach Rule-of-Two?
+  - Retention/Cleanup der Tagesordner unter dem Log-Root: Scope dieses Tasks oder explizites Non-Goal?
+  - Soll das JSONL-Schema additiv um ein optionales `packageVersion`-Feld erweitert werden, damit der Analyzer Writer-/Analyzer-Versionsspreizung erkennen kann?
 ---
 
 # Zielbild: Runtime-Snapshot und generische Call-Log-Auswertung
@@ -77,6 +82,86 @@ Wichtig ist die Unterscheidung zwischen **Audit als Bibliotheksfähigkeit** und
 Aggregationen liefern. Es sollte nicht selbst ein MCP-Audit-Tool oder einen
 zentralen Query-Service veröffentlichen. Jeder Server kann daraus seine eigene
 Health-/Diagnosefunktion bauen.
+
+## Erweiterung 2026-08-22: Generisches Analyse-CLI im Paket?
+
+### Auslöser
+
+Die Verantwortungsgrenze oben ordnet „CLI-Optionen und Ausgabeformat" dem
+jeweiligen Host zu. Bei mehr als einem konsumierenden MCP-Server entsteht
+dadurch jedoch derselbe Drift, den diese Aufgabe eigentlich beseitigt — nur
+eine Ebene höher: Jeder Host müsste Argument-Parsing, Text/JSON-Formatter,
+Exit-Codes und Discovery-Logik (Tagesordner, Glob über `{serverName}_*_*.jsonl`)
+duplicieren. Das DRY-Argument, das den Parser ins Paket holt, gilt auch für die
+CLI-Grundausstattung.
+
+### Optionen
+
+**Option A — Status quo (nur Daten-API, CLI je Host):**
+AiNetLinter behält `--analyze-mcp-log`; jeder weitere Server baut eigenes
+CLI-Plumbing auf der gemeinsamen Daten-API. Saubere Verantwortungsgrenze,
+aber N-fache Duplikation der Präsentationsgrundlagen.
+
+**Option B — Generisches CLI-Tool im Paket-Repo:**
+Separates Projekt (z. B. `src/RalfHuesing.Mcp.Observability.Cli`), verteilt als
+dotnet tool. Einmal implementiert, auditiert es die Logs **aller** Server,
+weil Dateipfad- und Namenskonvention (`%LOCALAPPDATA%\RalfHuesing\
+McpObservability\<serverName>\<yyyy-MM-dd>\{serverName}_{PID}_{instanceId}.jsonl`)
+vom Paket standardisiert werden. Der Analyzer kennt dafür bereits Discovery
+über den Standard-Root. Server-spezifische Heuristiken (`[ERROR]: CODE:`,
+Loading-Marker) wandern auch damit **nicht** ins Paket — AiNetLinter behält
+sein dünnes CLI-Command als Adapter mit Heuristiken, delegiert aber Parsing und
+Aggregation an das Paket.
+
+**Option C — Opt-in MCP-Audit-Tool im Paket:**
+Analog zum bestehenden FeedbackTools-Vorbild könnte das Paket ein opt-in
+Diagnose-Tool bereitstellen (z. B. `query_observability_summary`), sodass
+Agenten jeden konsumierenden Server ohne CLI selbst auditen können.
+Vorteil: null Code pro Server, agentennativ. Risiken: Tool-Proliferation,
+potenziell große Antworten (Limits/Truncation nötig), Datenschutz
+(Feedback-Records). Konsistent mit der Rule-of-Two-Haltung des Konzepts
+(Fehlersemantik, Marker): erst wenn zwei Server denselben Bedarf zeigen.
+
+**Einschätzung (Stand Diskussion):** B ist der natürliche nächste Schritt und
+löst das genannte DRY-Problem direkt; A allein lässt das Problem für alle
+weiteren Server bestehen; C ist sinnvoll erst nach B und bei nachgewiesenem
+Bedarf in mindestens zwei Servern. A und B schließen sich nicht aus — B ersetzt
+kein Host-CLI, es macht es überflüssig für den generischen Teil.
+
+### Edge Cases und weiterführende Punkte (aus AiNetLinter-Learnings und Review)
+
+- **Version-Spreizung:** Analyzer-Version kann neuer/älter als die Writer-
+  Version der gelesenen Dateien sein. Kandidat: additives, optionales
+  `packageVersion`-Feld im Schema; der Report weist dann vertretene Versionen
+  aus. Ohne dieses Feld ist Spreizung unsichtbar.
+- **Discovery über den Standard-Root:** Der CLI-Eingabepfad sollte optional
+  leer bleiben können (= ganzer Root), mit Filter `--server <name>` und ggf.
+  `--date <yyyy-MM-dd|today|all>`. Mehrere Server in einem Lauf → Report muss
+  serverweise getrennt und deterministisch aggregieren.
+- **Reparse Points:** Rekursive Verzeichnis-Scans müssen Junctions/Symlinks
+  überspringen (AiNetLinter-Learning aus Commit 106ebe8e: Staleness-Walk mit
+  Reparse-Point-Schutz). Gilt für Discovery im Paket und im CLI.
+- **Datei wächst während des Lesens:** Geöffnete Dateien mit
+  `FileShare.ReadWrite` lesen ist geplant; zusätzlich: Snapshot-Liste der
+  Dateien fixieren, nicht „live" neu globben; abschließende Teilzeile zählt
+  als malformed (bereits geplant), darf aber nicht als Serverfehler miss-
+  interpretiert werden, solange die Datei noch geschrieben wird.
+- **Encoding/Grenzfälle:** UTF-8 ohne/statt BOM, CRLF/LF, leere Dateien,
+  Datei nur aus einer halben Zeile — alles als definierte Fälle testen.
+- **Sehr große Logs:** Streaming-Lesen (kein Komplett-Einlesen), optionale
+  Zeitfilter (`--from`/`--to` UTC), `MaxMalformedLineDetails`-Cap ist bereits
+  geplant; analoge Caps für Sessions-Liste prüfen (tausende Prozessdateien).
+- **Exit-Codes als Vertrag:** CLI braucht stabile Exit-Codes (0 = ok inkl.
+  malformed lines, distinct code = keine Dateien gefunden, Fehlercodes für
+  IO/Zugriff), damit Agenten das Tool maschinell auswerten können. JSON-Modus
+  deterministisch (sortierte Keys, sortierte Dateilisten).
+- **Datenschutz:** Feedback-Records default-excluded (bereits geplant);
+  Argumente sind durch den Sanitizer redacted, bevor sie geschrieben werden —
+  der Analyzer darf niemals Rohargumente nachliefern. Kein Zeileninhalt-Dump
+  bei Malformed-Details (bereits geplant).
+- **Retention:** Tagesordner wachsen unbegrenzt. Ein `--clean older-than`
+  wäre naheliegend, ist aber ein Schreibzugriff und damit ein eigener Scope;
+  Entscheidung offen (siehe open_questions).
 
 ## Zielarchitektur
 
