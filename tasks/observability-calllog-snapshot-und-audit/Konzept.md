@@ -2,16 +2,13 @@
 status: draft
 type: konzept
 project_kind: brownfield
-estimated_scope: medium
+estimated_scope: large
 priority: P1
 rules_dir: .agents/rules
 last_updated: 2026-08-22
-open_questions:
-  - Soll das Paket-Repo ein generisches Analyse-CLI (dotnet tool) erhalten, damit nicht jeder MCP-Server eigene CLI-Optionen implementieren muss?
-  - Falls ja: Verteilungsform des CLIs — dotnet tool, eigenständige exe oder beides?
-  - Gehört ein optionales opt-in MCP-Audit-Tool (analog FeedbackTools-Vorbild) in den Scope, oder Non-Goal nach Rule-of-Two?
-  - Retention/Cleanup der Tagesordner unter dem Log-Root: Scope dieses Tasks oder explizites Non-Goal?
-  - Soll das JSONL-Schema additiv um ein optionales `packageVersion`-Feld erweitert werden, damit der Analyzer Writer-/Analyzer-Versionsspreizung erkennen kann?
+open_questions: []
+entscheidungen:
+  - "2026-08-22: Generisches Analyse-CLI als dotnet tool im Paket-Repo (Option B); opt-in MCP-Audit-Tool (C) und Retention-Cleanup sind Non-Goals mit Wiederöffnungsbedingungen; JSONL-Schema wird additiv um optionales `packageVersion` erweitert."
 ---
 
 # Zielbild: Runtime-Snapshot und generische Call-Log-Auswertung
@@ -71,8 +68,8 @@ müssten im Paket und im AiNetLinter-Parser synchron angepasst werden.
 | Reader für noch geöffnete Dateien | Observability-Paket | Die Paketdateien werden mit `FileShare.ReadWrite` geschrieben |
 | Behandlung/Anzahl ungültiger JSONL-Zeilen | Observability-Paket | Generische Datenqualität des eigenen Formats |
 | Health-Text und `structuredContent` | AiNetLinter bzw. jeweiliger MCP-Server | Server-spezifische Darstellung und API-Vertrag |
-| CLI-Optionen und Ausgabeformat `text`/`json` | AiNetLinter | Gehört zur Host-CLI, nicht in das allgemeine Paket |
-| `[ERROR]: CODE:`-Interpretation | AiNetLinter | Aktuelles server-/projektbezogenes Fehlerschema |
+| Generisches Analyse-CLI (`analyze`, Discovery, Exit-Codes, Text/JSON-Report) | Observability-Paket (dotnet tool) | Entscheidung 2026-08-22: einmal statt N-mal pro Server; Details siehe Abschnitt „Erweiterung 2026-08-22“ |
+| Host-spezifische CLI-Erweiterungen und Heuristiken (`[ERROR]: CODE:` etc.) | AiNetLinter bzw. jeweiliger MCP-Server | Bleiben als dünner Adapter beim Host |
 | Loading-/Startup-Marker | AiNetLinter | Heuristik des AiNetLinter-Startups, kein MCP-Standard |
 | Feedback- und Tool-Ausschlüsse | Paket liefert Metadaten; Host entscheidet | Das Paket kennt die Records, der Host kennt seine Auswertung |
 | MCP-Query-Tool, HTTP-Endpunkt oder Logserver | Nicht Teil dieses Vorhabens | Widerspricht der bewusst kleinen Paketverantwortung |
@@ -128,12 +125,25 @@ weiteren Server bestehen; C ist sinnvoll erst nach B und bei nachgewiesenem
 Bedarf in mindestens zwei Servern. A und B schließen sich nicht aus — B ersetzt
 kein Host-CLI, es macht es überflüssig für den generischen Teil.
 
+**Entscheidung (2026-08-22):** **Option B** wird umgesetzt — ein generisches
+Analyse-CLI als separates Projekt (`src/RalfHuesing.Mcp.Observability.Cli`),
+verteilt als **dotnet tool** (`dotnet tool install --global`). Eine zusätzlich
+eigenständige exe ist ausdrücklich kein Ziel; sie bleibt ein mechanisch
+ableitbarer Publish-Schritt für den Bedarfsfall (.NET ist ohnehin Prerequisite
+aller konsumierenden Server). Option C (opt-in MCP-Audit-Tool) ist **Non-Goal**
+mit Wiederöffnungsbedingung: erst wenn mindestens zwei unabhängige konsumierende
+Server denselben Bedarf zeigen. AiNetLinter behält sein serverbezogenes
+`--analyze-mcp-log` als dünnen Adapter (Heuristiken wie `[ERROR]: CODE:`,
+Formatter), delegiert Parsing, Aggregation und Discovery aber an das Paket und
+kann den lokalen Parser dann entfernen.
+
 ### Edge Cases und weiterführende Punkte (aus AiNetLinter-Learnings und Review)
 
 - **Version-Spreizung:** Analyzer-Version kann neuer/älter als die Writer-
-  Version der gelesenen Dateien sein. Kandidat: additives, optionales
-  `packageVersion`-Feld im Schema; der Report weist dann vertretene Versionen
-  aus. Ohne dieses Feld ist Spreizung unsichtbar.
+  Version der gelesenen Dateien sein. **Entschieden:** additives, optionales
+  `packageVersion`-Feld im Schema (siehe JSONL-Vertrag); der Report weist die
+  vertretenen Versionen aus; fehlt das Feld (Bestandsdateien), steht dort
+  `unknown (<letzte bekannte Paketversion vor Einführung)`.
 - **Discovery über den Standard-Root:** Der CLI-Eingabepfad sollte optional
   leer bleiben können (= ganzer Root), mit Filter `--server <name>` und ggf.
   `--date <yyyy-MM-dd|today|all>`. Mehrere Server in einem Lauf → Report muss
@@ -160,8 +170,10 @@ kein Host-CLI, es macht es überflüssig für den generischen Teil.
   der Analyzer darf niemals Rohargumente nachliefern. Kein Zeileninhalt-Dump
   bei Malformed-Details (bereits geplant).
 - **Retention:** Tagesordner wachsen unbegrenzt. Ein `--clean older-than`
-  wäre naheliegend, ist aber ein Schreibzugriff und damit ein eigener Scope;
-  Entscheidung offen (siehe open_questions).
+  wäre naheliegend, ist aber ein Schreibzugriff und damit eigener Scope —
+  **Non-Goal** für diesen Task. Der Report weist stattdessen read-only die
+  Gesamtgröße und den ältesten Tagesordner pro Server aus, damit Wachstum
+  sichtbar wird; ein Cleanup-Kommando ist möglicher Folgetask.
 
 ## Zielarchitektur
 
@@ -497,6 +509,9 @@ die bestehenden Regeln gültig:
 - `schemaVersion` bleibt `1`, solange nur additive Felder hinzukommen.
 - `timestamp` bleibt UTC.
 - `recordType` bleibt `tool_call` oder `feedback`.
+- additiv neu: optionales `packageVersion` (Paketversion des schreibenden
+  Prozesses); fehlendes Feld wird beim Lesen als unbekannte Version
+  ausgewiesen — rein additive Erweiterung, daher kein Major-Bump.
 - unbekannte additive Felder werden beim Lesen ignoriert.
 - eine Breaking Change erfordert eine Major-Version.
 
@@ -576,6 +591,16 @@ Reader, Discovery und Aggregation aus dem AiNetLinter-Workaround als
 paketinterne bzw. öffentliche Daten-API überführen. Malformed-Line-Diagnostik
 und FileShare-Verhalten dabei ausdrücklich testen.
 
+### Phase 2b: Generisches Analyse-CLI (dotnet tool)
+
+Neues Projekt `src/RalfHuesing.Mcp.Observability.Cli`, verteilt als dotnet
+tool. Baut vollständig auf dem Analyzer aus Phase 2 auf und enthält ausschließlich
+generische Fähigkeiten: Discovery über den Standard-Log-Root (optional mit
+`--server`/`--date`-Filtern), deterministischen Text-/JSON-Report inklusive
+Versionsausweisung (`packageVersion`) und Retention-Indikatoren, sowie stabile,
+dokumentierte Exit-Codes als maschineller Vertrag. Keine serverspezifischen
+Heuristiken, keine Schreibzugriffe.
+
 ### Phase 3: AiNetLinter umstellen
 
 Paketreferenz aktualisieren, lokale Doppelimplementierung entfernen und nur
@@ -595,17 +620,33 @@ aufgenommen.
   abfragen.
 - Ein generischer Analyzer kann Paket-JSONL-Dateien sicher und deterministisch
   auswerten, auch wenn sie gerade geschrieben werden.
+- Das generische Analyse-CLI (dotnet tool) auditiert Logs aller konsumierenden
+  Server ohne hostspezifischen Code; Exit-Codes und JSON-Ausgabe sind
+  dokumentierte, deterministische Verträge.
 - AiNetLinter muss nach der Migration keinen eigenen JSONL-Parser und keinen
   generischen Aggregator mehr pflegen.
 - Server-spezifische Health-Darstellung, CLI und Heuristiken bleiben außerhalb
   des Pakets.
 - Es gibt keine neue Datenbank, keinen HTTP-/MCP-Logquery-Service und keine
   unnötige Plugin-Abstraktion.
-- Schema-, API-, Datenschutz- und SemVer-Dokumentation sind aktualisiert.
+- Schema-, API-, Datenschutz- und SemVer-Dokumentation sind aktualisiert
+  (einschließlich `packageVersion` als additive Schemaerweiterung).
 - Build, relevante Tests sowie der paketweite Abschlusslauf sind grün und
   warnungsfrei.
 - Vor dem Paket-Commit sind Duplicate-, Magic-Value-, Dead-Code- und
   Violation-Audits durchgeführt; echte Befunde sind behoben oder dokumentiert.
+
+## Bewusste Non-Goals dieses Tasks (mit Wiederöffnungsbedingungen)
+
+- **Opt-in MCP-Audit-Tool im Paket (Option C):** Nicht jetzt. Wiederöffnung,
+  wenn mindestens zwei unabhängige konsumierende Server denselben Bedarf
+  zeigen. Der FeedbackTools-Vorbild-Mechanismus (opt-in Tool-Registrierung)
+  bleibt der dafür vorgesehene Weg.
+- **Retention/Cleanup-Kommando:** Nicht jetzt — Schreibzugriff ist eigener
+  Scope. Der Report macht Wachstum read-only sichtbar; Cleanup bleibt
+  möglicher Folgetask.
+- **Eigenständige exe-Verteilung:** Nicht jetzt — `dotnet tool` deckt den
+  Bedarf ab; ein self-contained Publish bleibt mechanisch ableitbar.
 
 ## Offene Architekturentscheidung für die Umsetzung
 
