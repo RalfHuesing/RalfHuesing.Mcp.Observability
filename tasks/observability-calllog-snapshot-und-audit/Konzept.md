@@ -601,6 +601,35 @@ Versionsausweisung (`packageVersion`) und Retention-Indikatoren, sowie stabile,
 dokumentierte Exit-Codes als maschineller Vertrag. Keine serverspezifischen
 Heuristiken, keine Schreibzugriffe.
 
+## Auslieferungsmodell und Release (Klärung 2026-08-22)
+
+Es bleiben **zwei getrennte Artefakte** aus einem Repo:
+
+| Artefakt | Typ | Consumer |
+| --- | --- | --- |
+| `RalfHuesing.Mcp.Observability.<v>.nupkg` | Library (.dll) | MCP-Server via `<PackageReference>` — erhält weiterhin **nur** die .dll, keine .exe, keine Zusatzdateien im Server-Output |
+| `RalfHuesing.Mcp.Observability.Cli.<v>.nupkg` | dotnet tool | Pro Maschine via `dotnet tool install --global`; landet in `%USERPROFILE%\.dotnet\tools`, keine Kopie in Server-Verzeichnissen |
+
+Bewusst **nicht** umgesetzt: die Audit-.exe als Content-File ins Lib-Paket.
+Das würde die .exe N-fach in jeden Server-`bin`-Ordner duplizieren,
+Versions-Chaos bei unterschiedlich gepinnten Server-Paketen erzeugen und
+Server aufblähen, die das Audit-Werkzeug nie aufrufen. Das dotnet tool hat
+stattdessen genau eine installierte Version pro Maschine, die Logs aller
+Server auswertet — ohne dass die Server davon wissen müssen.
+
+Release-Ablauf (ein Git-Tag `v<x.y.z>` = ein Release = zwei Artefakte):
+
+- Beide packbaren Projekte liegen in derselben Solution; das Cli-Projekt
+  referenziert die Lib per ProjectReference (kein Drift möglich).
+- `build.yml`: Pack-Schritt wird von einem hartcodierten csproj auf eine
+  Schleife über beide Projekte erweitert; Push (`*.nupkg --skip-duplicate`)
+  und GitHub-Release-Upload (`./artifacts/*`) funktionieren danach unverändert
+  für beide Pakete.
+- **Lockstep-Versionierung:** Beide Pakete erhalten stets dieselbe
+  Versionsnummer. Der Analyzer parst das Schema, das die Lib schreibt —
+  gleiche Nummern machen „Tool `<v>` versteht alle Logs von Lib ≤ `<v>`"
+  trivial wahr; Restrisiken deckt das `packageVersion`-Feld ab.
+
 ### Phase 3: AiNetLinter umstellen
 
 Paketreferenz aktualisieren, lokale Doppelimplementierung entfernen und nur
