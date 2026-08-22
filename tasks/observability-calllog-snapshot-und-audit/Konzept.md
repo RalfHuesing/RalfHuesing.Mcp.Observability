@@ -1,16 +1,15 @@
 ---
-status: draft
+status: ready
 type: konzept
 project_kind: brownfield
 estimated_scope: large
 priority: P1
 rules_dir: .agents/rules
 last_updated: 2026-08-22
-open_questions:
-  - Finaler Befehlsname des dotnet tools (`ToolCommandName`, Vorschlag: `rh-mcpobs`) — externer Vertrag, vor Umsetzung festzulegen?
-  - Plattform-Strategie: Windows-first mit zentraler Pfadauflösung und dokumentierter Einschränkung (Empfehlung) oder volle Cross-Platform-Unterstützung ab v1?
+open_questions: []
 entscheidungen:
   - "2026-08-22: Generisches Analyse-CLI als dotnet tool im Paket-Repo (Option B); opt-in MCP-Audit-Tool (C) und Retention-Cleanup sind Non-Goals mit Wiederöffnungsbedingungen; JSONL-Schema wird additiv um optionales `packageVersion` erweitert."
+  - "2026-08-22: Toolname `rh-mcpobs` (`ToolCommandName`); Plattform-Strategie Windows-first mit zentral gekapselter Pfadauflösung und `--root`-Option als Escape-Hatch für späteren Cross-Platform-Support ohne Breaking Change."
 ---
 
 # Zielbild: Runtime-Snapshot und generische Call-Log-Auswertung
@@ -178,10 +177,11 @@ kann den lokalen Parser dann entfernen.
   sichtbar wird; ein Cleanup-Kommando ist möglicher Folgetask.
 - **Plattform-Annahme (Audit-Fund 2026-08-22):** Der Default-Log-Root liegt
   unter `%LOCALAPPDATA%` — Windows-spezifisch, während ein dotnet tool
-  grundsätzlich plattformübergreifend läuft. Die Pfadauflösung wird deshalb
-  zentral gekapselt und das CLI erhält eine explizite `--root`-Option; die
-  finale Strategie (Windows-first mit dokumentierter Einschränkung vs. volle
-  Cross-Platform-Unterstützung) ist als offene Frage notiert.
+  grundsätzlich plattformübergreifend läuft. **Entschieden:** Windows-first;
+  die Pfadauflösung wird zentral gekapselt und das CLI erhält eine explizite
+  `--root`-Option als Escape-Hatch, damit späterer Cross-Platform-Support
+  ohne Breaking Change nachgereicht werden kann. Die Windows-Einschränkung
+  wird in der Tool-Doku ausgewiesen.
 - **Berechtigungen (Audit-Fund):** Logs anderer Benutzer-/Dienstkonten sind
   ggf. nicht lesbar. Unlesbare Dateien sind ein eigener, ausgewiesener
   Fehlerfall im Report — niemals stilles Überspringen.
