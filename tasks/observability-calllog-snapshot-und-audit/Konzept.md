@@ -1,12 +1,14 @@
 ---
-status: ready
+status: draft
 type: konzept
 project_kind: brownfield
 estimated_scope: large
 priority: P1
 rules_dir: .agents/rules
 last_updated: 2026-08-22
-open_questions: []
+open_questions:
+  - Finaler Befehlsname des dotnet tools (`ToolCommandName`, Vorschlag: `rh-mcpobs`) — externer Vertrag, vor Umsetzung festzulegen?
+  - Plattform-Strategie: Windows-first mit zentraler Pfadauflösung und dokumentierter Einschränkung (Empfehlung) oder volle Cross-Platform-Unterstützung ab v1?
 entscheidungen:
   - "2026-08-22: Generisches Analyse-CLI als dotnet tool im Paket-Repo (Option B); opt-in MCP-Audit-Tool (C) und Retention-Cleanup sind Non-Goals mit Wiederöffnungsbedingungen; JSONL-Schema wird additiv um optionales `packageVersion` erweitert."
 ---
@@ -174,6 +176,19 @@ kann den lokalen Parser dann entfernen.
   **Non-Goal** für diesen Task. Der Report weist stattdessen read-only die
   Gesamtgröße und den ältesten Tagesordner pro Server aus, damit Wachstum
   sichtbar wird; ein Cleanup-Kommando ist möglicher Folgetask.
+- **Plattform-Annahme (Audit-Fund 2026-08-22):** Der Default-Log-Root liegt
+  unter `%LOCALAPPDATA%` — Windows-spezifisch, während ein dotnet tool
+  grundsätzlich plattformübergreifend läuft. Die Pfadauflösung wird deshalb
+  zentral gekapselt und das CLI erhält eine explizite `--root`-Option; die
+  finale Strategie (Windows-first mit dokumentierter Einschränkung vs. volle
+  Cross-Platform-Unterstützung) ist als offene Frage notiert.
+- **Berechtigungen (Audit-Fund):** Logs anderer Benutzer-/Dienstkonten sind
+  ggf. nicht lesbar. Unlesbare Dateien sind ein eigener, ausgewiesener
+  Fehlerfall im Report — niemals stilles Überspringen.
+- **Zukünftige Major-`schemaVersion` (Audit-Fund):** Der Analyzer parst
+  Records mit höherer Major-Version als seine eigene nicht, zählt sie aber
+  als eigenen Ausweis (`unsupportedVersionCount`-artig) statt abzubrechen;
+  additive Felder innerhalb derselben Major-Version bleiben voll lesbar.
 
 ## Zielarchitektur
 
@@ -562,10 +577,24 @@ fehlenden Anforderungen konkret.
 - ungültige JSON-Zeile zwischen gültigen Records,
 - unbekannte additive Felder,
 - falsche oder fehlende `schemaVersion`/`recordType`,
+- Record mit höherer Major-`schemaVersion` wird gezahlt/ausgewiesen, aber
+  nicht geparst; kein Abbruch des Laufs,
 - Feedbackdatei standardmäßig ausgeschlossen und optional einschließbar,
 - deterministische Reihenfolge der Dateien, Sessions und Toolschlüssel,
 - Begrenzung von `MalformedLineDetails`,
 - keine Ausgabe sensibler Argumente oder Responses in Fehlermeldungen.
+
+### Analyse-CLI
+
+- stabile Exit-Codes: ok (inkl. malformed lines), keine Dateien gefunden,
+  IO-/Zugriffsfehler — jeweils als eigener dokumentierter Code,
+- JSON-Modus ist byte-deterministisch bei identischem Input (sortierte Keys,
+  sortierte Dateilisten),
+- Discovery-Filter (`--server`, `--date`, `--root`) greifen wie dokumentiert,
+- Standard-Root-Auflösung ist zentral gekapselt und in Tests überschreibbar,
+- unlesbare Dateien (Berechtigungen) erscheinen als eigener Report-Fehlerfall,
+  werden nicht still überschrieben/übergangen,
+- `--help` dokumentiert alle Optionen und Exit-Codes.
 
 ### Integration und Dokumentation
 
@@ -625,6 +654,9 @@ Release-Ablauf (ein Git-Tag `v<x.y.z>` = ein Release = zwei Artefakte):
   Schleife über beide Projekte erweitert; Push (`*.nupkg --skip-duplicate`)
   und GitHub-Release-Upload (`./artifacts/*`) funktionieren danach unverändert
   für beide Pakete.
+- `scripts/create-release.ps1` (Audit-Fund 2026-08-22): muss den zweiten
+  Pack-Pfad ebenso erhalten wie `build.yml`; `CHANGELOG.md` bekommt je Release
+  Abschnitte für beide Pakete.
 - **Lockstep-Versionierung:** Beide Pakete erhalten stets dieselbe
   Versionsnummer. Der Analyzer parst das Schema, das die Lib schreibt —
   gleiche Nummern machen „Tool `<v>` versteht alle Logs von Lib ≤ `<v>`"
@@ -686,3 +718,15 @@ Reader und Schema unmittelbar zusammengehören und keine zusätzliche
 Versions-/Abhängigkeitsmatrix entstehen soll. Falls ein Consumer später nur den
 Reader ohne Runtime-Integration benötigt, kann daraus mit wenig Aufwand ein
 separates Paket extrahiert werden.
+
+## Vollständigkeitsaudit (2026-08-22)
+
+Nach dem Nachschärfen wurde das Konzept systematisch gegen neun Linsen geprüft:
+API/SemVer · JSONL-Schema/Kompatibilität · Datenschutz · Tests ·
+Build/CI/Release/Auslieferung · Plattform/Betrieb · Migration/Rollback ·
+Dokumentation · Scope-Grenzen/Non-Goals. Gefundene Lücken (Release-Pfad,
+Plattform-Annahme, Major-Schema-Fremdversionen, CLI-Testabdeckung,
+Berechtigungs-Fehlerfall) sind oben eingearbeitet; die beiden verbleibenden
+Entscheidungen stehen in `open_questions`. Der Roadmap-Kritiker des drift-loops
+prüft jeden Step zusätzlich gegen dieses Konzept — Abweichungen fließen als
+Korrektur-Steps oder Tech-Debt-Einträge zurück.
